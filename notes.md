@@ -1122,3 +1122,484 @@ Conhecer e utilizar o componente Picker para opções de seleção.
 O início de qualquer aplicativo começa com uma ótima experiência de entrada!
 
 Continuamos na aula a seguir.
+
+#### 11/04/2024
+
+@02-Modelo de paciente
+
+@@01
+Projeto da aula anterior
+
+Você pode revisar o seu código e acompanhar o passo a passo do desenvolvimento do nosso projeto através desta branch no Github e, se preferir, pode baixar o projeto da aula anterior.
+Bons estudos!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/aula-01
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/archive/refs/heads/aula-01.zip
+
+@@02
+Criando o modelo do paciente e fazendo a requisição POST
+
+O que precisamos fazer agora? Ao clicar no botão de cadastro, precisamos enviar uma requisição POST para a nossa API para, de fato, registrar o paciente em nosso banco de dados. Vamos abrir o Insomnia e analisar o que precisamos enviar no cadastro.
+{
+  "cpf": "65147182055",
+  "nome": "Lucas",
+  "email": "lucas@email.com",
+  "senha": "12345",
+  "telefone": 99999999,
+  "planoSaude": "Unimed"
+}
+COPIAR CÓDIGO
+Nesse caso, enviamos um JSON com CPF, nome, e-mail, senha, telefone e plano de saúde. São os mesmos atributos que temos na nossa tela de cadastro. Vou apenas modificar o CPF já que esse paciente já foi cadastrado anteriormente. Portanto, vou adicionar o CPF como "11111111111".
+
+Lembrando que a API faz uma validação se o CPF é válido, realizando todos os cálculos necessários para verificação. Além disso, não podemos registrar dois pacientes com o mesmo CPF ou o mesmo e-mail.
+
+Vamos mudar o e-mail para "lucas@gmail.com". Clicando em "Send", a requisição retorna o paciente, significa que o cadastro foi aceito. O retorno é um objeto com os mesmos atributos enviados e um atributo adicional chamado "ID".
+
+{
+  "cpf": "11111111111",
+  "nome": "Lucas",
+  "email": "lucas@gmail.com",
+  "senha":
+   "a220fba0be8d95eb4d29216e8d429ed0:3d87e78b131f473014d48977366 6e07f",
+  "telefone": 99999999,
+  "planoSaude": "Unimed",
+  "id": "0213ec39-41d4-4a81-871c-85eafa10a8a8"
+}
+COPIAR CÓDIGO
+Vamos começar criando este modelo de dados na nossa aplicação com Swift.
+
+Retornando ao Xcode, vou acessar a pasta Models, clicar com o botão direito para criar um novo arquivo, clicar em "Swift File > Next" e nomearemos esse arquivo como "Patient", que é o modelo para o paciente.
+
+No arquivo Schedule Appointment, quando definimos o modelo de dados para agendar uma consulta, criamos dois modelos diferentes: um para a resposta que a API estava retornando e outro para a requisição que estávamos fazendo, pois alguns atributos eram diferentes.
+
+Agora, farei de forma diferente. Como o único atributo que diferencia a requisição da resposta é o ID, vou criar apenas uma estrutura, um único modelo de dados, e adicionarei o parâmetro ID como opcional.
+
+Vamos começar fazendo com que esta struct esteja em conformidade com o protocolo Identifiable, que exige um ID, e também ao protocolo Codable, para conseguirmos tanto a codificação dos dados para JSON quanto a decodificação desses dados do JSON para este modelo de dados. Então, vamos começar a definir a constante id, que é do tipo string e será opcional.
+
+import Foundation
+
+struct Patient: Identifiable, Codable {
+        let id: String?
+COPIAR CÓDIGO
+Quando enviarmos para o back-end, vamos enviar o ID como new, pois ainda não temos o ID do paciente. Obtemos o ID quando a requisição retorna. Assim, conseguimos atualizar essa propriedade.
+
+Após o id, vamos adicionar os demais dados:
+
+struct Patient: Identifiable, Codable {
+    let id: String?
+    let cpf: String
+    let name: String
+    let email: String
+    let password: String
+    let phoneNumber: String
+    let healthPlan: String
+COPIAR CÓDIGO
+Também vamos criar o enum CodingKeys, que representa o valor como string e o protocolo CodingKey para realizar o mapeamento das nossas chaves.
+
+enum CodingKeys: String, CodingKey {
+    case id
+    case cpf
+    case name = "nome"
+    case email
+    case password = "senha"
+    case phoneNumber = "telefone"
+    case healthPlan = "planoSaude"
+}
+COPIAR CÓDIGO
+Agora temos a nossa struct Patient criada!
+
+Para aproveitar o restante do vídeo, vamos começar a definir a função que cadastra o paciente no nosso webservice. Então, no arquivo WebService, antes da função cancelAppointment, vamos definir outra função: registerPatient. Precisamos pensar quais serão os atributos ou o atributo que essa função receberá.
+
+Poderíamos receber os atributos de forma individual, como nome, CPF, e-mail. Entretanto, nesse caso, como são vários atributos, acho mais viável passar um único atributo do tipo Patient aqui, certo?
+
+Então, entre parênteses, vou colocar patient, que é do tipo Patient. Vamos começar então com o async throws. Qual será o retorno dessa função? Será um Patient, que é opcional.
+
+func registerPatient(patient: Patient) async throws -> Patient? {
+
+}
+COPIAR CÓDIGO
+Dentro das chaves vamos iniciar a nossa requisição. Começaremos criando o endpoint. Então, let endpoint é igual a baseURL mais "/paciente".
+
+Em seguida, faremos o tratamento da URL.
+
+    func registerPatient(patient: Patient) async throws -> Patient? {
+        let endpoint = baseURL + "/paciente"
+        
+        guard let url = URL(string: endpoint) else {
+            print("Erro na URL!")
+            return nil
+        }
+COPIAR CÓDIGO
+Então, o que precisamos fazer agora?
+
+Precisamos converter o patient, que é do tipo Patient, em JSON para enviarmos à nossa API no corpo da requisição. Vamos fazer isso com o seguinte código:
+
+let jsonData = try JSONEncoder().encode(patient)
+COPIAR CÓDIGO
+Beleza, agora devemos criar a nossa requisição. Assim, var request, que é igual a URLRequest passando a url. Request.httpMethod é igual a POST, pois estamos criando um paciente e enviando informações. Request.setValue para application/json e forhttpHeaderField.
+
+Vou especificar que estou enviando um JSON para a API fazer o tratamento correto. E o que mais vou preencher aqui? Vou incluir a request.httpBody, que será igual ao meu jsonData.
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = jsonData
+COPIAR CÓDIGO
+Agora, de fato, vamos chamar essa requisição. Como vamos fazer isso?
+
+Com let (data, _), é underline, pois não vou usar da minha variável resposta, isso aqui é uma dupla que estou desestruturando, é igual a try await URLSession.shared.dataForRequest.
+
+let (data, _) = try await URLSession.shared.data(for: request)
+COPIAR CÓDIGO
+Agora precisamos decodificar esses dados. Escrevo, então, let patient é igual a try JSONDecoder.decode. Qual é o tipo? É um Patient.self, from: data. Agora, simplesmente vou retornar o patient e temos nossa requisição criada.
+
+        let patient = try JSONDecoder().decode(Patient.self, from: data)
+        
+        return patient
+COPIAR CÓDIGO
+Continuaremos no próximo vídeo!
+
+@@03
+CodingKeys
+
+Considerando esta aula e o código fornecido, analise o seguinte trecho:
+struct Patient: Identifiable, Codable {
+    ...
+    enum CodingKeys: String, CodingKey {
+        ...
+        case name = "nome"
+        ...
+        case password = "senha"
+        ...
+    }
+}
+...
+func registerPatient(patient: Patient) async throws -> Patient? {
+    ...
+    let jsonData = try JSONEncoder().encode(patient)
+    ...
+}
+COPIAR CÓDIGO
+Qual é a principal razão para a definição de CodingKeys dentro do modelo Patient e como isso afeta a função registerPatient?
+
+A função registerPatient usará CodingKeys para adicionar automaticamente campos adicionais, como um token de autenticação, ao JSON.
+ 
+Isto é incorreto. O CodingKeys não adiciona automaticamente campos adicionais ao JSON.
+Alternativa correta
+CodingKeys serve para garantir que todas as chaves sejam codificadas em caixa alta ao fazer a requisição POST.
+ 
+Isto é incorreto. O propósito do CodingKeys não é mudar a capitalização das chaves.
+Alternativa correta
+CodingKeys garante que apenas os atributos listados dentro dela sejam enviados na requisição POST, excluindo todos os outros.
+ 
+Ao definir um conjunto de CodingKeys, somente essas chaves especificadas serão codificadas ou decodificadas. No entanto, a principal função das CodingKeys não é necessariamente para excluir atributos.
+Alternativa correta
+A definição de CodingKeys é usada para mapear os nomes dos atributos de Patient para os nomes das chaves esperadas pelo servidor ao fazer a codificação e decodificação.
+ 
+No padrão Swift Codable, quando você tem nomes de propriedades em sua estrutura ou classe que não correspondem exatamente às chaves no JSON que você está codificando ou decodificando, você pode usar CodingKeys para fornecer um mapeamento personalizado. No exemplo dado, temos name = "nome" e password = "senha" o que significa que enquanto a propriedade no Swift é chamada de name, a chave correspondente no JSON será "nome", e assim por diante.
+
+@@04
+Chamando a função de criar um paciente
+
+Com a requisição já criada no nosso arquivo WebService, precisamos chamar essa função no nosso arquivo SignUpView.
+No entanto, antes de fazer isso, vou explicar um pouco sobre o funcionamento de ambas as telas de cadastro e de login, e o fluxo da nossa aplicação.
+
+Quando a pessoa usuária se cadastrar, ela ainda precisará fazer login. Portanto, se o cadastro for bem-sucedido, ela será redirecionada para a tela de login.
+
+Se houver alguma falha no cadastro, um alerta de erro aparecerá, e a pessoa usuária permanecerá nessa página para realizar as possíveis correções conforme o tipo de erro.
+
+Dito isso, vamos ao nosso arquivo SignUpView. O que vamos fazer? Logo após o init(), vamos criar uma função:
+
+func register () async {
+
+}
+COPIAR CÓDIGO
+Essa função será assíncrona. E quando chamaremos essa função? Quando a pessoa usuária clicar no botão de cadastrar. Então, vamos localizar este botão. O botão "Cadastrar" está na linha 118. Dentro da ação do botão, vamos remover o print(healthPlan) e escrever Task {} para inserir o meu contexto assíncrono, lembrando que preciso dele para chamar uma função assíncrona. Então, vou escrever Task {await register}.
+
+     Button(action: {
+         Task {
+             await register()
+         }
+     }, label: {
+         ButtonView(text: "Cadastrar")
+     })
+COPIAR CÓDIGO
+Agora, vamos implementar a função register(). Mas ainda não instanciei a struct WebService. Vamos fazer isso. Logo antes das minhas variáveis de estado vamos escrever:
+
+let service = WebService()
+COPIAR CÓDIGO
+Agora, sim, podemos chamar a função.
+
+Então, dentro da função register(), vou inserir um do/catch, porque a minha chamada pode me retornar um erro.
+
+Dentro do catch, vou adicionar um print("Ocorreu um erro ao cadastrar paciente, \(error)") onde error é a variável a qual tenho acesso.
+
+    func register() async {
+        do {
+
+            }
+        } catch {
+            print("Ocorreu um erro ao cadastrar paciente: \(error)")
+        }
+COPIAR CÓDIGO
+Agora, fora desse do, preciso criar a minha pessoa paciente, preciso instanciá-la. Por quê? Porque na minha função registerPatient() do meu WebService, estou recebendo um atributo patient que é do tipo Patient. Então, preciso instanciar isso. Vamos fazer isso na SignUpView:
+
+    func register() async {
+        let patient = Patient(id: nil, cpf: cpf, name: name, email: email, password: password, phoneNumber: phoneNumber, healthPlan: healthPlan)
+        do {
+
+            }
+        } catch {
+            print("Ocorreu um erro ao cadastrar paciente: \(error)")
+        }
+COPIAR CÓDIGO
+Vou abrir chaves e vou escolher essa segunda opção. Para o id, vou passar new, porque ainda não tenho acesso ao id do paciente.
+
+Dentro desse do, vamos começar a fazer a chamada. Como me retorna uma opcional, preciso fazer o desembrulho. Vamos lá, if let patientRegistered = try await service.registerPatient(patient). Como isso aqui é uma condicional, preciso adicionar chaves e, nesse momento, vou simplesmente dar um print("Paciente foi cadastrado com sucesso"). Como não vou utilizar essa minha variável patientRegistered, posso simplesmente colocar aqui um sublinhado, indicando que ela não será utilizada.
+
+    func register() async {
+        let patient = Patient(id: nil, cpf: cpf, name: name, email: email, password: password, phoneNumber: phoneNumber, healthPlan: healthPlan)
+        do {
+            if let _ = try await service.registerPatient(patient: patient) {
+               print("Paciente foi cadastrado com sucesso!")
+            }
+        } catch {
+            print("Ocorreu um erro ao cadastrar paciente: \(error)")
+        }
+COPIAR CÓDIGO
+Vamos salvar e executar a aplicação.
+
+Vou clicar em "Ainda não possui uma conta? Cadastre-se" e vou começar o cadastro.
+
+Não se preocupe com esses avisos do Xcode, tudo bem? Isso é provavelmente porque estou usando meu teclado físico ou algo do tipo. Vou preencher os campos. E apareceu aqui no console: "Paciente foi cadastrado com sucesso".
+
+E, se eu voltar no meu Insomnia, posso verificar o cadastro. Vou na rota GET "todos os pacientes" e clicar em "Send", e agora consigo ver que o que acabei de criar foi cadastrado com sucesso.
+
+Implementando alertas
+Agora, vamos implementar os alertas, algo que já fizemos em diversas outras telas. Então, vou retornar ao meu Xcode e vou criar duas novas variáveis de estado com @State private var showAlert, que inicializará como false. Como estou definindo o tipo das outras variáveis, também vou definir o tipo dessas. Isso é opcional. A outra será State private var isPatientRegistered, o que significa? Significa quando minha requisição for concluída com sucesso. Também vou inicializá-la como False.
+
+    @State private var name: String = ""
+    @State private var email: String = ""
+    @State private var cpf: String = ""
+    @State private var phoneNumber: String = ""
+    @State private var healthPlan: String
+    @State private var password: String = ""
+    @State private var showAlert: Bool = false
+    @State private var isPatientRegistered: Bool = false
+COPIAR CÓDIGO
+Na minha função register(), logo após o catch, vou definir showAlert como true, porque o alerta será exibido em qualquer caso. Neste catch, vou definir isPatientRegistered como false, porque ocorreu um erro, então o paciente não foi registrado. Também vou criar um else logo após o if let, onde escreverei isPatientRegistered = false. E dentro do meu if let, que é quando o registro foi bem sucedido, isPatientRegistered = true.
+
+    func register() async {
+        let patient = Patient(id: nil, cpf: cpf, name: name, email: email, password: password, phoneNumber: phoneNumber, healthPlan: healthPlan)
+        do {
+            if let _ = try await service.registerPatient(patient: patient) {
+                isPatientRegistered = true
+                print("Paciente foi cadastrado com sucesso!")
+            } else {
+                isPatientRegistered = false
+            }
+        } catch {
+            isPatientRegistered = false
+            print("Ocorreu um erro ao cadastrar paciente: \(error)")
+        }
+        showAlert = true
+    }
+COPIAR CÓDIGO
+Agora, vamos criar o modificador de alerta. Logo após o meu .padding().
+
+E então, .alert. Vou escolher a última opção. Qual será o título? Depende. Então, vou fazer um operador ternário. IsPatientRegistered ?. Se sim, meu título será sucesso. Então, ponto de interrogação. Se não, dois pontos, o meu título será "Ops, algo deu errado!".
+
+No IsPresented, onde estou passando um binding (vinculação), vou passar minha variável isPatientRegistered.Vou passar como showAlert, que está controlando se o meu alerta deve ser exibido ou não. Quanto às ações, vou adicionar os botões. Terei apenas um botão, que é um "OK". Ele não terá nenhuma ação, porque, por padrão, quando a pessoa usuária clica em "OK", o alerta some. Então, um botão. No actionLabel, o action, como eu disse, não terá nada. E o label será um texto "OK". Como também não estou usando nenhuma variável, esse T na linha 155, vou substituir por um underline _.
+
+Agora, na message, passo meu parâmetro isPatientRegistered. Mas, na verdade, também não preciso usá-lo. Então, vamos fazer aqui na mensagem. Vou colocar um if isPatientRegistered. Se sim, qual será o texto da mensagem? Texto. "O paciente foi criado com sucesso.". E um else. Texto. "Houve um erro ao registrar o paciente. Por favor, tente novamente."
+
+        .navigationBarBackButtonHidden()
+        .padding()
+        .alert(isPatientRegistered ? "Sucesso!" : "Ops, algo deu errado!", isPresented: $showAlert, presenting: $isPatientRegistered) { _ in
+            Button(action: {}, label: {
+                Text("Ok")
+            })
+        } message: { _ in
+            if isPatientRegistered {
+                Text("O paciente foi criado com sucesso!")
+            } else {
+                Text("Houve um erro ao cadastrar o paciente. Por favor tente novamente.")
+            }
+        }
+COPIAR CÓDIGO
+Novamente, como não estou utilizando essa variável isPatientRegistered, que defini na message. Essa variável não é a mesma que defini como estado. Vou simplesmente colocar um underline _.
+
+Vamos executar este código novamente e vamos ver se está funcionando. Vou cadastrar um novo usuário.
+
+E ao clicar em "Cadastrar" apareceu uma caixa de alerta informando "Sucesso! O paciente foi cadastrado com sucesso!" e abaixo da mensagem temos o botão "OK".
+
+Continuaremos no próximo vídeo.
+
+@@05
+Navegando para uma tela de acordo com um estado
+
+Agora que já estamos mostrando alertas de sucesso e erro, precisamos redirecionar a pessoa usuária para a tela de login após um cadastro bem sucedido. Isso é uma navegação baseada em estado. Se o cadastro for bem sucedido, a pessoa será redirecionada. Do contrário, ela permanecerá na mesma tela.
+Primeiramente, vamos ao nosso arquivo SignUpView. Criarei uma nova variável de estado, logo abaixo do IsPatientRegistered. Essa nova variável será do tipo booleano e, inicialmente, será false.
+
+@State private var navigateToSignInView: Bool = false
+COPIAR CÓDIGO
+Agora, precisamos trabalhar na nossa função register. Quando o registro for realizado com sucesso, precisamos alterar NavigateToSignInView para true. Portanto, estamos alterando o estado dessa variável. Podemos apagar a linha que coloca o print com "Paciente foi cadastrado com sucesso".
+
+    func register() async {
+        let patient = Patient(id: nil, cpf: cpf, name: name, email: email, password: password, phoneNumber: phoneNumber, healthPlan: healthPlan)
+        do {
+            if let _ = try await service.registerPatient(patient: patient) {
+                isPatientRegistered = true
+                navigateToSignInView = true
+            } else {
+                isPatientRegistered = false
+            }
+        } catch {
+            isPatientRegistered = false
+            print("Ocorreu um erro ao cadastrar paciente: \(error)")
+        }
+        showAlert = true
+    }
+COPIAR CÓDIGO
+Continuando, após o nosso alerta, precisamos criar um novo modificador chamado NavigationDestination. No parâmetro IsPresented, passarei a variável NavigateToSignInView, já que ela controla se uma view deve ser apresentada ou não. Como destino (Destination), indico a SignInView (tela de login).
+
+        .navigationDestination(isPresented: $navigateToSignInView) {
+            SignInView()
+        }
+COPIAR CÓDIGO
+Verificando se a implementação está correta, pressiono "Command + R" para executar o simulador e realizarei um cadastro.
+
+No entanto, mesmo após a mensagem de sucesso após clicar em "Cadastrar" , percebo que a tela não é alterada para a tela de login.
+
+Acredito que esse erro ocorra por causa do alerta. Assim, retorno ao meu código e altero o estado da variável NavigateToSignInView na ação do botão, para true. E removo a alteração feita dentro da função Register, na linha 37. Agora, quando a pessoa usuária pressionar "OK" no alerta, ela será redirecionada para a tela de login.
+
+Testando novamente, finalmente, ao registrar uma pessoa usuária com sucesso, ela é redirecionada para a tela de login. Então, já temos esta navegação baseada em estado. Toda vez que a pessoa usuária se cadastrar e a requisição for bem sucedida, ela será levada até a tela de login, onde poderá inserir o e-mail e senha. Depois disso, conseguirá acessar nossa aplicação.
+
+@@06
+Navegação entre telas por estado
+
+Considere o seguinte cenário: você está desenvolvendo um aplicativo para e-commerce e, antes de finalizar uma compra, o usuário precisa estar logado. Se o usuário tentar finalizar a compra sem estar logado, um alerta é apresentado, sugerindo que ele faça o login.
+Com base no tópico de navegação condicional, qual é a melhor maneira de utilizar a variável @State para controlar a navegação para a tela de login após o usuário clicar no botão "Ok" do alerta?
+
+@State private var userIsLoggedIn: Bool = true
+...
+Button("Finalizar Compra") {
+    if !userIsLoggedIn {
+        navigateToSignInView.toggle()
+    }
+}
+...
+.navigationDestination(isPresented: $userIsLoggedIn) {
+    SignInView()
+}
+ 
+Alternativa correta
+@State private var userIsLoggedIn: Bool = false
+...
+Button("Finalizar Compra") {
+    if !userIsLoggedIn {
+        userIsLoggedIn = true
+    }
+}
+...
+.navigationDestination(isPresented: $userIsLoggedIn) {
+    SignInView()
+}
+ 
+Alternativa correta
+@State private var navigateToSignInView: Bool = false
+...
+Button("Finalizar Compra") {
+    if !userIsLoggedIn {
+        navigateToSignInView = true
+    }
+}
+...
+.navigationDestination(isPresented: $navigateToSignInView) {
+    SignInView()
+}
+ 
+Aqui, definimos a variável navigateToSignInView para controlar a navegação para a tela de login. Quando o botão "Finalizar Compra" é pressionado e o usuário não está logado (!userIsLoggedIn), a variável navigateToSignInView é definida como true, acionando a navegação para SignInView.
+
+@@07
+Faça como eu fiz: utilizando da requisição POST para criar um paciente
+
+Hora de praticar! Siga as instruções abaixo para criar um paciente:
+1 - Definição do modelo de paciente:
+
+a) Crie a struct Patient, que segue os protocolos Identifiable e Codable;
+b) Use CodingKeys para mapear os campos de nome personalizado.
+struct Patient: Identifiable, Codable {
+    ...
+    enum CodingKeys: String, CodingKey {
+        ...
+    }
+}
+COPIAR CÓDIGO
+2- Implementando a função de registrar um paciente:
+
+a) Crie a função registerPatient que faz uma requisição POST para registrar um paciente;
+b) função deve receber um paciente e devolver um paciente opcional (pode ser nil).
+        func registerPatient(patient: Patient) async throws -> Patient? {
+            ...
+        }
+COPIAR CÓDIGO
+3 - Chamada para a função de registro:
+
+a) Defina variáveis @State para controlar a exibição de alertas e o sucesso do registro;
+b) Implemente a função register que chama registerPatient e atualiza as variáveis de estado.
+        @State private var showAlert: Bool = false
+        @State private var isPatientRegistered: Bool = false
+        
+        func register() async {
+            ...
+        }
+COPIAR CÓDIGO
+4 - Adicionando função ao botão de registro:
+
+a) Adicione uma ação ao botão "Cadastrar" para chamar a função register.
+        Button(action: {
+            ...
+            Task {
+                await register()
+            }
+        }, label: {
+            ButtonView(text: "Cadastrar")
+        })
+COPIAR CÓDIGO
+5 - Exibindo alertas com feedback:
+
+a) Utilize um .alert para exibir feedback após a tentativa de registro;
+b) Baseie-se nas variáveis de estado para decidir qual mensagem mostrar.
+.alert(isPatientRegistered ? "Sucesso!" : "Ops, algo deu errado!", ...
+COPIAR CÓDIGO
+6 - Navegação condicional:
+
+a) Use uma variável @State para controlar a navegação para a tela de login;
+b) Implemente uma ação no botão "Ok" do alerta para atualizar esta variável e, assim, acionar a navegação.
+        @State private var navigateToSignInView: Bool = false
+        
+        ...
+        
+        .navigationDestination(isPresented: $navigateToSignInView) {
+            SignInView()
+        }
+
+Essa aula se concentra em integrar a interface do usuário com lógicas de back-end, através da criação e registro de pacientes. É essencial entender como os dados fluem entre a interface e o servidor e como os estados são gerenciados em SwiftUI.
+Confira o progresso do código no GitHub aqui.
+
+Se tiver dúvidas ou enfrentar desafios, lembre-se de usar o fórum ou discord para obter ajuda!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/aula-02
+
+@@08
+O que aprendemos?
+
+Nesta aula, você aprendeu a:
+Definir o modelo de dados para um paciente e como fazer uma requisição POST para criá-lo;
+Chamar a função na tela de cadastro para criar um novo paciente;
+Navegar para diferentes telas com base em um estado atual da aplicação.
+Avançamos um passo essencial para personalizar a experiência do usuário!
+
+Vejo você na próxima aula.
