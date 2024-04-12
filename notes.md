@@ -1603,3 +1603,356 @@ Navegar para diferentes telas com base em um estado atual da aplicação.
 Avançamos um passo essencial para personalizar a experiência do usuário!
 
 Vejo você na próxima aula.
+
+#### 12/04/2024
+
+@03-Login e autenticação
+
+@@01
+Projeto da aula anterior
+
+Você pode revisar o seu código e acompanhar o passo a passo do desenvolvimento do nosso projeto através desta branch no Github e, se preferir, pode baixar o projeto da aula anterior.
+Bons estudos!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/aula-02
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/archive/refs/heads/aula-02.zip
+
+@@02
+Criando modelo de login
+
+Antes de começarmos a falar efetivamente sobre o login, gostaria de ressaltar que quando cadastramos uma nova pessoa paciente, o objeto retornado apresenta uma senha diferente daquela que eu inicialmente enviamos, porque ela é uma senha criptografada. Portanto, é por isso que ela contém uma grande sequência de letras e números. Dito isso, vamos começar a pensar no nosso login da aplicação.
+Ainda no Insomnia, na coluna esquerda acessaremos a rota de login, abrindo "Autenticação > login". Esta é uma rota do tipo POST que recebe como entrada um JSON contendo dois atributos: o e-mail e a senha. Vamos clicar no botão "Send" (Enviar) ao lado do endereço da rota e verificar o que essa requisição nos retorna.
+
+Rota login:
+{
+    "email":"lucas@gmail.com",
+    "senha":"12345"
+}
+COPIAR CÓDIGO
+Retorno:
+
+{
+    "auth": true,
+    "id": "701c4af0-068d-4eef-b98a-31267ff4aa6a",
+    "token": "eyJhbGc101JIUzI1NiIsInRSCCI6IkpXVC39.eyJpZCI6IjMMYWYLTA 20601NGV LZ1110ThhLTMxMjY3ZmY@YWEZYSIsImLhdCI6MTY5NDcxMDc10Cwl ZXWIjoxNzI2M1Q2NzU410.XTBJAq@WRPYnkPIgBQmqsTLXHCMGB38Hd3H-tB91qRo
+}
+COPIAR CÓDIGO
+No caso, ela retornou um objeto com uma chave auth como true, pois a pessoa usuária está autenticada. Este objeto também contém o id da pessoa paciente e um token de autenticação. Em um vídeo posterior, eu explicarei melhor o que significa o token e como ele funciona o uso do token.
+
+Neste momento, começaremos a criar o nosso modelo de dados. Criaremos dois modelos diferentes, um para a requisição de login e outro para a resposta da requisição de login. Para isso, voltaremos ao meu XCode.
+
+Dentro do XCode, criaremos um novo arquivo na pasta "Models". Para isso, clicamos com o botão direito do mouse sobre a pasta, selecionamos "New file" (Novo arquivo). Na janela que abre no centro da tela, selecionamos "Swift File" e clicamos no botão "Next" (Próximo), no canto inferior direito da janela. Na nova janela que abre no centro da tela, nomearemos o arquivo como Login e clicaremos no botão "Create" (Criar), no canto inferior direito da janela.
+
+No arquivo Login.swift, que abriu no centro da tela, abaixo do import Foundation, codaremos struct LoginRequest, que é a estrutura que representará as informações que precisamos enviar. Ela se adequará ao protocolo Codable.
+
+Dentro dessa estrutura, passaremos o let email: String e let password: String. Adicionaremos também o enum CodingKeys para fazer o mapeamento dessas chaves. O tipo dele é string e ele precisa se adequar ao protocolo CodingKey. Dentro do CodingKeys, passamos o case email, que não muda, e case password = "senha".
+
+struct LoginRequest: Codable {
+    let email: String
+    let password: String
+
+    enum CodingKeys: String, CodingKey {
+        case email
+        case password = "senha"
+    }
+}
+COPIAR CÓDIGO
+Após a LoginRequest, criaremos uma outra estrutura, codando struct LoginResponse: Identifiable, Codable{}. Dessa vez, além do protocolo Codable, passamos o Identifiable, pois ela me retorna o ID. Dentro do LoginResponse, adicionamos os atributos let auth: Bool, ou seja, do tipo booleano, let id: String e, por fim, let token: String, sendo os dois últimos do tipo string.
+
+struct LoginResponse: Identifiable, Codable {
+    let auth: Bool
+    let id: String
+    let token: String
+}
+COPIAR CÓDIGO
+Neste caso, não precisamos utilizar as Coding Keys, porque os atributos de LoginResponse são os mesmos da resposta que a API está me retornando. Ao verificarmos o Insomnia, observamos que a API também retorna auth, id e token, ou seja, não há nenhum nome diferente. Portanto, neste caso, não precisamos fazer o mapeamento.
+
+Código final do Login.swift
+import Foundation
+
+struct LoginRequest: Codable {
+    let email: String
+    let password: String
+
+    enum CodingKeys: String, CodingKey {
+        case email
+        case password = "senha"
+    }
+}
+
+struct LoginResponse: Identifiable, Codable {
+    let auth: Bool
+    let id: String
+    let token: String
+}
+COPIAR CÓDIGO
+Já temos os modelos de dados criados. Agora, precisamos efetuar a requisição do tipo POST para realizar o login da pessoa usuária de fato.
+
+@@03
+Fazendo a requisição POST
+
+Vamos implementar a requisição do tipo POST. Entendo que possam estar cansados de fazer requisições, mas estamos quase concluindo.
+Com o XCode aberto, acessaremos o arquivo WebService, antes do registerPatient(), criaremos uma nova função chamada loginPatient(). Esta função poderia receber um parâmetro do tipo loginRequest, mas receberá o e-mail e a senha dela, em seguida instanciaremos esse tipo dentro da função. Essa é uma opção que vocês têm, não é obrigatório.
+
+Então, passaremos como parâmetros o email: String e password: String. Logo após os parênteses, passamos o async throws com o retorno opcional da resposta de login, ou seja LoginResponse?. Dentro da função, começaremos criando o endpoint, escrevendo let endpoint = baseURL + "auth/login", como podemos confirmar no Insomnia.
+
+func loginPatient(email: String, password: String) async throws -> LoginResponse? {
+    let endpoint = baseURL + "/auth/login"
+}
+COPIAR CÓDIGO
+Observação: A instrutora esqueceu de colocar a barra (/) antes do auth, o que gera um erro no momento da execução e ela corrige posteriormente. Para facilitar o processo de aprendizagem, já deixamos o código correto na transcrição.
+Agora vamos tratar a URL. Para isso, podemos copiar o código da url da registerPatient(), porque será igual, e colar abaixo do endpoint. Após a manipulação da URL, instanciaremos o loginRequest, passando os parâmetros email e password. Além disso, precisamos transformar a variável loginRequest para JSON, codando let jsonData = try JSONEncoder().encode(loginRequest).
+
+Feito isso, podemos criar a requisição de fato, criando a var request e passando a URLRequest(url: url). Em seguida informamos que o httpMethod da requisição será POST, codaremos o setValue() e p httpBody.
+
+Depois, para realizarmos a requisição, codaremos o let (data, _) = try await URLSession.shared.data(for: request). Feito isso, precisamos decodificar os dados, codando let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data). Por fim, fazemos o retorno, com return loginResponse.
+
+Arquivo WebService.swift
+func loginPatient(email: String, password: String) async throws -> LoginResponse? {
+    let endpoint = baseURL + "/auth/login"
+
+    guard let url = URL(string: endpoint) else {
+        print("Erro na URL!")
+        return nil
+    }
+
+    let loginRequest = LoginRequest(email: email, password: password)
+
+    let jsonData = try JSONEncoder().encode(loginRequest)
+
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = jsonData
+
+    let (data, _) = try await URLSession.shared.data(for: request)
+
+    let loginResponse = try JSONDecoder().decode(LoginResponse.self, from: data)
+
+    return loginResponse
+}
+COPIAR CÓDIGO
+Criamos a nossa requisição, então vamos chamar essa função na nossa tela de login. Portanto, acessaremos "Views > SigninView. Nesse arquivo, precisamos instanciar o WebService, então, no começo da View, após as variáveis de estado, codaremos let service = WebService(). Abaixo dela, criaremos a func login() async, que é uma função assíncrona.
+
+Arquivo SigninView.swift
+@State private var email: String = ""
+@State private var password: String = ""
+@State private var showAlert: Bool = false
+
+let service = WebService()
+
+func login() async {
+
+}
+COPIAR CÓDIGO
+Esta função será chamada quando a pessoa usuária pressiona o botão "Entrar". Então, na linha 62, dentro da ação do botão "Entrar", codaremos task { await login() }.
+
+Arquivo SigninView.swift
+Button(action: {
+    Task {
+        await login()
+    }
+}, label: {
+    ButtonView(text: "Entrar")
+})
+COPIAR CÓDIGO
+Retornando para função login, no começo do código, dentro dela codaremos o do/catch. No catch codaremos um print("Ocorreu um erro no login: \(error). Já no do, codaremos o if let response = try await service.loginPatient() { }.
+
+Os parâmetros do loginPatient() serão o email e a password, que são as duas variáveis de estado, definidas nas linhas 12 e 13. Como é uma condicional, precisamos colocar o corpo da condicional entre chaves, onde passaremos apenas um print(response).
+
+func login() async {
+    do {
+        if let response = try await service.loginPatient(email: email, password: password) {
+            print(response)
+        }
+    } catch {
+        print("Ocorreu um erro no login: \(error)")
+    }
+}
+COPIAR CÓDIGO
+Vamos executar essa aplicação, com "Command + R". No emulador, tentaremos acessar a aplicação com o e-mail lucas@gmail.com e a senha 12345. Ao clicarmos em "Entrar", recebemos a mensagem "Erro na URL!" no nosso Console. Precisamos verificar o problema no WebService. No caso, eu esqueci a barra antes de auth, então o endpoint do loginPatient() é baseURL + "/auth/login".
+
+Vamos executar o código novamente e preencher o formulário de login com os mesmo dados de antes. Ao clicarmos no botão entrar, nosso Console retornou um objeto do tipo LoginResponse() com os atributos auth: true, id (o ID do paciente) e token (uma string enorme).
+
+Retorno do Console após a ação de Login
+
+LoginResponse(auth: true, id: "701c4af0-068d-4eef-b98a-31267ff4aa6a", token: "eyJhbGc101JIUzI1NiIsInRSCCI6IkpXVC39.eyJpZCI6IjMMYWYLTA 20601NGV LZ1110ThhLTMxMjY3ZmY@YWEZYSIsImLhdCI6MTY5NDcxMDc10Cwl ZXWIjoxNzI2M1Q2NzU410.XTBJAq@WRPYnkPIgBQmqsTLXHCMGB38Hd3H-tB91qRo
+COPIAR CÓDIGO
+A última coisa que precisamos implementar é um alerta. Entretanto, só teremos um alerta se o login não for bem-sucedido. Se a pessoa paciente conseguir logar com sucesso, ela será redirecionada para a tela em que pode visualizar as especialidades, agendar consultas, remarcar, entre outras operações.
+
+Neste caso, criaremos apenas um alerta de erro, sem a necessidade de uma variável para controlar se é de sucesso ou de erro. Então, no arquivo SigninView, começaremos criando uma nova variável de estado a password. Será a variável showAlert, do tipo booleano e será inicializada como falsa.
+
+struct SignInView: View {
+    
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var showAlert: Bool = false
+    //código omitido
+COPIAR CÓDIGO
+Exibiremos o alerta quando ocorrer um erro. Para isso, dentro do catch, acima do print, codaremos showAlert = true. Já dentro do do, também criaremos um bloco else {} logo após o if let, onde codaremos showAlert = true.
+
+func login() async {
+    do {
+        if let response = try await service.loginPatient(email: email, password: password) {
+            print(response)
+        } else {
+            showAlert = true
+        }
+    } catch {
+        showAlert = true
+        print("Ocorreu um erro no login: \(error)")
+    }
+}
+COPIAR CÓDIGO
+Com isso feito, implementaremos o modificador de alerta. Após o navigationBarBackButtonHidden(), que está na linha 89, adicionaremos .alert(), mas escolheremos a opção titleKey:isPresented:actions:message dentre as sugestões do XCode. Essa opção é um tanto diferente, pois não possui uma variável presente.
+
+Para titleKey, vamos atribuir a string "Ops, algo deu errado". Já para isPresented, passaremos nossa variável $showAlert. Para actions, passaremos Button, que possuirá uma action vazia e uma label com Text("Ok"). Por fim, na mensagem, passaremos um Text("Houve um erro ao entrar na sua conta. Por favor, tente novamente.").
+
+.padding()
+.navigationBarBackButtonHidden()
+.alert("Ops, algo deu errado!", isPresented: $showAlert) {
+    Button(action: {}, label: {
+        Text("Ok")
+    })
+} message: {
+    Text("Houve um erro ao entrar na sua conta. Por favor tente novamente.")
+}
+COPIAR CÓDIGO
+Observação: Também é possível utilizar estes alertas nas outras telas que criadas sem passar o parâmetro utilizado, porém será mantida a forma utilizada anteriormente para as outras telas.
+Agora executaremos esse código, com "Cmd + R". Na tela de login do emulador, passaremos dados errados nos campos de e-mail e senha. Ao clicar em "Entrar", receberemos o alerta "Ops, algo deu errado. Houve um erro ao entrar na sua conta, por favor, tente novamente.". Portanto já temos um alerta criado.
+
+O próximo passo é entender mais sobre o funcionamento de um token. A seguir, teremos uma pequena aula teórica sobre isso. Aguardo você no próximo vídeo!
+
+@@04
+Entendendo o funcionamento do processo de autenticação JWT
+
+Vamos falar sobre o processo de autenticação com o token JWT, que é retornado do nosso back-end quando fazemos a requisição POST para autenticar uma pessoa usuária. Quando a pessoa usuária consegue logar na nossa aplicação, significa que ela está, de fato, autenticada.
+Token de Autenticação
+O token de autenticação funciona como uma assinatura digital, ou uma chave, que seria sua identificação única. Por exemplo, em aplicativos bancários, para verificar seu saldo ou para fazer uma transferência, você precisa fazer um login. Assim sendo, é necessário passar esse token de autenticação para confirmar que, de fato, você é uma pessoa usuária autenticada e poder então realizar essas operações.
+
+Existem vários algoritmos e padrões que transformam informações, como as informações da pessoa usuária, da autenticação ou do token, em um token. Um desses padrões é o JWT.
+
+JWT
+JWT é a sigla para JSON Web Token, que é um padrão para autenticação e troca de informações. Através dele, o token é decodificado no Back-end para decifrar algumas informações e, então, confirmar a autenticidade. Assim o Back-end informa se a pessoa usuária está autenticada e se está tudo certo para retornar qualquer tipo de informação que a pessoa esteja procurando. Vejamos um exemplo de token JWT:
+
+Exemplo de token JWT
+eyJhbGciOiJIUZI1NilsInR5cC161kpXVCJ9.ey JpZCI6IjA4YmJkYZRhLTNmYZAtNDg0OS04 YzlhLThjZmJhYTYzZGNhNSIsImlhdCI6MTY 5NDEZMDc2MSwiZXhwljoxNjk0MjE3MTYxf Q.btnPOeMXDJ_E3MaXNaToosbLTwsjeFTD m7GHf|1EWrU
+COPIAR CÓDIGO
+O token JWT é uma string com várias letras, maiúsculas e minúsculas, e números. Este é o token com o qual estamos lidando, então Vamos entender um pouco mais sobre o seu funcionamento.
+
+Como o JWT funciona
+Tudo começa com a pessoa usuária preenche o formulário de login, por exemplo, na nossa aplicação ele informa o e-mail e a senha. A aplicação front-end, que é a Cliente, como a nossa aplicação iOS, enviará uma requisição do tipo POST para o servidor com esse e-mail e a senha. O Servidor, que é o Back-end, verifica as credenciais. Se o e-mail existe e a senha está correta, o servidor cria o token JWT e retorna para a nossa aplicação.
+
+Por sua vez, a Cliente armazena o token em local seguro, e em breve discutiremos sobre as boas práticas de segurança. Com esse token armazenado em local seguro, a Cliente envia requisições com este token no cabeçalho do tipo authorization (auth) , lembrando que o cabeçalho são as informações das nossas requisições. Assim, nosso Back-end checa esse JWT e obtém informações sobre a pessoa usuária. Com isso, ele retornará a resposta da nossa requisição.
+
+Esquema do funcionamento de um token JWT. Esse esquema envolve três atores, que estão dispostas horizontalmente na parte superior na seguinte ordem: Usuário, Cliente e Servidor. No "Cliente", informa que se trata da aplicação front-end, enquanto no "Servidor" informa que se trata da aplicação back-end. O funcionamento tem 6 passos. 1: Pessoa usuária preenche o formulário de login com e-mail e senha; 2: Cliente envia uma requisição POST para o servidor com e-mail e senha; 3: Se estiver tudo certo com as credenciais, o servidor cria um token JWT e o retorna para Cliente; 4: Cliente armazena o token em um lugar seguro; 5: Cliente envia futuras requisições com o token no cabeçalho de "Authorization"; e 6: O Servidor checa o JWT, obtém informações sobre usuário e, então, retorna a resposta. Cada passo está abaixo do ator responsável por ele, então sob o Usuário tem apenas o passo 1, sob o Ciente tem os passo 2, 4 e 5 e sob o Servidor tem os passo 3 e 6. Além disso, os passos estão conectados por setas amarelas, que apontam para o próximo passo.
+
+Enviando o token nas rotas
+Como enviar o token nas rotas? Uma vez que o JWT é gerado na hora do login, ele é enviado de volta para o cliente, conforme vimos no funcionamento. Assim, precisamos incluir este token no cabeçalho do tipo authorization da requisição HTTP. Para isso, enviamos com a palavra-chave "Bearer" (Portador), que significa que estamos enviando um token para autenticação. Então enviamos Bearer StringDoToken, substituindo StringDoToken pelo token JWT gerado.
+
+Para entender melhor, abriremos o Insomnia. Quando abrimos rota que necessita de autenticação, como a Criar uma consulta, Na parte superior ao campo de código, temos um menu horizontal onde a segunda opção é "Bearer".
+
+Clicando na aba "Bearer", observamos que há o campo "TOKEN" com um token inserido. Neste caso, eu adicionei um token qualquer, que obviamente não é válido no momento, mas serve para ilustrar. Existem outras formas de autenticação também, que podemos observar clicando na seta para baixo ao lado direito do nome "Bearer", mas estamos utilizando é a opção Bearer Token.
+
+Conclusão
+Aprendemos mais sobre o funcionamento do token e vou disponibilizar um material complementar para que você possa se aprofundar ainda mais nesse assunto. Agora está na hora de começarmos a lidar com o token de fato, salvando-o em algum lugar e o enviando para as requisições.
+
+Espero você para o próximo vídeo.
+
+@@05
+Para saber mais: JWT (JSON Web Token)
+
+Para complementar seus estudos, não deixe de ler este artigo na Alura que explica sobre o JWT.
+
+@@06
+Fluxo de login
+
+Em nosso aplicativo, estamos construindo um sistema de login para permitir que as pessoas se cadastrem e entrem na própria conta!
+Considerando o fluxo de login, qual das afirmações abaixo é verdadeira sobre o processo de autenticação e login implementado?
+
+A função loginPatient faz uma requisição GET para o servidor para autenticar o paciente.
+ 
+Alternativa correta
+A estrutura LoginRequest é responsável por enviar as credenciais do usuário, e sua representação em JSON irá sempre conter os campos "email" e "senha".
+ 
+A afirmação está correta! A estrutura LoginRequest tem campos para email e password, e usa a enum CodingKeys para mapear o campo password para a chave "senha" em JSON. Portanto, sua representação em JSON contém os campos "email" e "senha".
+Alternativa correta
+O aplicativo utiliza autenticação baseada em cookies, conforme indicado no campo token na estrutura LoginResponse.
+ 
+Alternativa correta
+A função loginPatient definida no WebService tem como única responsabilidade decodificar a resposta do servidor e, por isso, não se preocupa em enviar os dados de LoginRequest como corpo da requisição POST.
+
+@@07
+Faça como eu fiz: requisição POST para login de um paciente
+
+Bora implementar a requisição para logar um paciente?
+1 - Modelo de requisição de login:
+
+a) Defina a struct LoginRequest que será usada para enviar informações de login;
+b) Utilize CodingKeys para mapear os campos personalizados.
+    struct LoginRequest: Codable {
+        ...
+        enum CodingKeys: String, CodingKey {
+            ...
+        }
+    }
+COPIAR CÓDIGO
+2 - Modelo de resposta de login:
+
+a) Crie a struct LoginResponse que define a estrutura da resposta do login;
+b) Este modelo contém um token JWT, que é um padrão para autenticação.
+    struct LoginResponse: Identifiable, Codable {
+        ...
+    }
+COPIAR CÓDIGO
+3 - Realizando o login:
+
+a) Implemente a função loginPatient que realiza uma requisição POST para autenticar um paciente;
+b) A função usa o LoginRequest e espera um LoginResponse.
+    func loginPatient(email: String, password: String) async throws -> LoginResponse? {
+        ...
+    }
+COPIAR CÓDIGO
+4 - Chamando a função de login:
+
+a) Defina uma variável @State para controlar a exibição de um alerta;
+b) Implemente a função login que chama loginPatient e lida com a resposta;
+c) Não se esqueça de chamar essa função na ação do botão “Entrar”!
+    @State private var showAlert: Bool = false
+    
+    func login() async {
+        ...
+    }
+    
+    Button(action: {
+        Task {
+            await login()
+        }
+    }
+COPIAR CÓDIGO
+5 - Exibindo um alerta em caso de erro:
+
+a) Utilize .alert para mostrar um feedback se algo der errado durante o processo de login.
+        .alert("Ops, algo deu errado!", isPresented: $showAlert) {
+            ...
+        }
+
+
+Nesta aula, mergulhamos mais profundamente na integração com a API, focando no processo de login e autenticação. Utilizar padrões de autenticação, como JWT, é crucial para garantir a segurança e a privacidade dos usuários.
+Dê uma olhada no progresso do código no GitHub.
+
+Bons estudos!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/aula-03
+
+@@08
+O que aprendemos?
+
+Nesta aula, você aprendeu a:
+Construir o modelo necessário para o login de um paciente;
+Implementar a requisição POST para fazer a autenticação;
+Compreender o funcionamento do processo de autenticação JWT, uma prática padrão na indústria.
+Utilizar de tokens é muito comum no fluxo de uma aplicação!
+
+Na próxima aula, vamos continuar evoluindo o nosso app.
