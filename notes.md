@@ -1956,3 +1956,700 @@ Compreender o funcionamento do processo de autenticação JWT, uma prática padr
 Utilizar de tokens é muito comum no fluxo de uma aplicação!
 
 Na próxima aula, vamos continuar evoluindo o nosso app.
+
+#### 15/04/2024
+
+@04-Token de autenticação
+
+@@01
+Projeto da aula anterior
+
+Você pode revisar o seu código e acompanhar o passo a passo do desenvolvimento do nosso projeto através desta branch no Github e, se preferir, pode baixar o projeto da aula anterior.
+Bons estudos!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/aula-03
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/archive/refs/heads/aula-03.zip
+
+@@02
+Salvando o token e ID do paciente no UserDefaults
+
+Já temos uma requisição de login funcionando. Além disso, estamos retornando o token e também entendemos um pouco mais sobre como ele funciona.
+Agora, precisamos salvar o token em algum lugar. Também precisamos guardar o ID do paciente, que estamos utilizando em diversas requisições. Portanto, enquanto a pessoa usuária estiver logada em nossa aplicação, precisamos que o token e o ID dela estejam salvos.
+
+Mas, por que isto é necessário? Pois usaremos o token em outras requisições, então ele precisa estar armazenado em algum lugar, disponível para nós.
+
+Estrutura UserDefaults
+Para começar, vamos salvar essas informações no que chamamos de UserDefaults.
+
+Para quem vem do desenvolvimento web, o UserDefaults é muito semelhante ao localStorage, por exemplo. Basicamente, é uma classe no iOS na qual armazenamos algumas informações de forma persistente no dispositivo.
+
+Essas informações são armazenadas com uma chave e um valor. No caso do token, por exemplo, o armazenaríamos com uma chave nomeada "token", seguida do valor desse token.
+
+No UserDefaults, podemos armazenar e recuperar algumas informações de forma persistente nas configurações do dispositivo, até que o aplicativo seja desinstalado. O UserDefaults é ótimo para quando você precisa salvar alguma preferência de usuário ou alguma configuração específica.
+
+Em um primeiro momento, vamos utilizar o UserDefaults. Mas, se você já conhece um pouco do iOS, não se preocupe: também iremos discutir sobre boas práticas de segurança e outras maneiras de armazenar esses valores.
+
+Vamos começar criando uma estrutura chamada UserDefaultsHelper. Dentro desta estrutura, definiremos algumas funções para, por exemplo, salvar, recuperar ou remover algo no UserDefaults.
+
+Sem mais delongas, vamos para o código!
+
+Retornaremos ao meu Xcode e criaremos este arquivo dentro da pasta "Services". Clicando nela com o botão direito, selecionaremos "New file > Swift file". Nomearemos o novo arquivo como UserDefaultsHelper e clicaremos em "Create".
+
+Vamos inserir o seguinte código:
+
+UserDefaultsHelper
+struct UserDefaultsHelper {
+  static func save(value: String, key: String) {
+    UserDefaults.standard.set(value, forKey: key)
+  }
+}
+COPIAR CÓDIGO
+Acima, começamos definindo a struct de nome UserDefaultsHelper e definimos uma função estática save. A função ser estática significa que não precisamos instanciar a classe para utilizá-la, e fazemos isso com a palavra static.
+
+A função save recebe dois parâmetros: o valor value e a chave key, ambos do tipo String. Não estamos retornando nada quando salvamos algo. Logo, o retorno não contém nada.
+
+Essa struct é apenas um "auxiliador", ou seja, ela nos auxiliará a salvar algo, de fato, no UserDefaults. Isso para não ficarmos chamando a classe UserDefaults o tempo inteiro na nossa View, por exemplo.
+
+Então, dentro da função save, chamamos UserDefaults.standard.set. É essa função que realmente salva algo no UserDefaults. Seu primeiro parâmetro é value e o segundo é forKey, para o qual passamos a nossa key.
+
+Pronto! Essa é a função que salva algo no UserDefaults. Em seguida, adicionamos o seguinte à nossa struct:
+
+static func get(for key: String) -> String? {
+    return UserDefaults.standard.string(forKey: key)
+}
+COPIAR CÓDIGO
+Criamos outra função estática para recuperar algo do UserDefaults, denominada get. Ela recebe como parâmetro o for com key, ou seja, um labeled parameter.
+
+Esse parâmetro é do tipo String e retorna uma string opcional, ou seja, String?. Isso porque pode haver ou não algo com essa chave no UserDefaults.
+
+Depois, adicionamos nessa função um return de UserDefaults.standard.string(forKey: key), passando a chave para o retorno. Ou seja, essa função retorna uma string para a chave que queremos localizar.
+
+Por fim, temos outra função estática nessa nossa struct, que chamamos de remove:
+
+static func remove(for key: String) {
+        UserDefaults.standard.removeObject(forKey: key)
+}
+COPIAR CÓDIGO
+Também passamos o for key: String como parâmetro dessa função, e ela não retornará nada.
+
+Em seguida, escrevemos entre as chaves: UserDefaults.standard.removeObject(forKey: key), passando a nossa chave.
+
+Agora, temos completa a struct chamada UserDefaultsHelper que contém três funções diferentes: para salvar, para recuperar e para remover uma informação do UserDefaults:
+
+struct UserDefaultsHelper {
+    static func save(value: String, key: String) {
+        UserDefaults.standard.set(value, forKey: key)
+    }
+    
+    static func get(for key: String) -> String? {
+        return UserDefaults.standard.string(forKey: key)
+    }
+    
+    static func remove(for key: String) {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+COPIAR CÓDIGO
+Feito isso, vamos chamar a função save para salvar tanto o token quanto o ID do paciente.
+
+Chamando as funções de UserDefaults
+Voltaremos ao arquivo SignInView. Na função login, quando damos um print response, vamos remover o print e escrever UserDefaultsHelper.save().
+
+Qual será o valor (value)? Será o response.token. Já a chave (key) será marcada como token. Assim, no UserDefaults, a chave é o token e o valor é aquela string grande que representa o token.
+
+Chamaremos a função UserDefaultsHelper.save() novamente, logo abaixo. Dessa vez, o valor será response.id, que representa o ID do paciente, e a chave será marcada como "patient-id".
+
+SignInView
+func login() async {
+        do {
+                if let response = try await service.loginPatient(email: email, password: password) {
+                        UserDefaultsHelper.save(value: response.token, key: "token")
+                        UserDefaultsHelper.save(value: response.id, key: "patient-id")
+// código omitido
+}
+COPIAR CÓDIGO
+Dessa forma, nós estamos salvando tanto o token quanto o ID do paciente no UserDefaults!
+
+@@03
+Verificando se o usuário está logado na aplicação
+
+Nossa próxima tarefa é manipular o arquivo ContentView de maneira a fazer com que, se a pessoa usuária estiver logada na aplicação, seja exibida a tela de boas-vindas com especialistas e a tela que mostra as consultas, em que é possível realizar operações como remarcar ou cancelar consultas.
+No entanto, caso não esteja logada, deve ser mostrada a tela de login e de cadastro.
+
+Essa é uma verificação que faremos baseado em: se o token estiver armazenado nos UserDefaults, mostraremos a tela inicial, pois a pessoa usuária está logada. Caso contrário, se o token não estiver armazenado nos UserDefaults e retornar nil, um valor nulo, mostramos a tela de login.
+
+Como estamos salvando o token e o ID do paciente nos UserDefaults, existe uma property wrapper, uma propriedade especial, chamada de AppStorage. Basicamente, ela vincula alguns valores às chaves específicas do UserDefaults.
+
+Portanto, se houver uma AppStorage relacionada à chave do token, isso significa que qualquer modificação que for feita no valor dessa chave "token" será detectada por essa propriedade. Isso é muito útil e nos permite trabalhar de maneira muito simples.
+
+Então, vamos começar. No arquivo ContentView, vamos definir essa propriedade. Logo após a struct, escreveremos @AppStorage, depois abrir e fechar parênteses.
+
+Qual é a chave que ela vai observar? O token. Então vamos passar como parâmetro uma string "token". Em seguida, definimos a variável com var, que chamaremos de token também, sendo do tipo String. Vamos inicializá-la com uma string vazia.
+
+ContentView
+@AppStorage("token") var token: String = ""
+COPIAR CÓDIGO
+Ela é inicializada com uma string vazia, mas não se preocupe! Afinal, se a aplicação analisar esse @AppStorage e verificar que o token tem algum valor correspondente, então ele vai simplesmente ignorar essa string vazia e substituir com o valor do token.
+
+Agora, faremos uma verificação de valor dentro do body. Primeiro, escreveremos if token.isEmpty, verificando se o token está vazio, então vamos abrir e fechar chaves.
+
+Se ele estiver vazio, significa que não localizou um valor para essa chave token, então, utilizou o valor padrão, ou seja, a string vazia. Sendo assim, vamos inserir uma NavigationStack e, dentro dela, chamar a SignInView.
+
+Depois disso, colocaremos um else e colaremos toda a TabView que vem logo abaixo.
+
+struct ContentView: View {
+    
+    @AppStorage("token") var token: String = ""
+    
+    var body: some View {
+        
+        if token.isEmpty {
+            NavigationStack {
+                SignInView()
+            }
+        } else {
+            TabView {
+                NavigationStack {
+                    HomeView()
+                }
+                .tabItem {
+                    Label(
+                        title: { Text("Home") },
+                        icon: { Image(systemName: "house") }
+                    )
+                }
+                
+                NavigationStack {
+                    MyAppointmentsView()
+                }
+                .tabItem {
+                    Label(
+                        title: { Text("Minhas consultas") },
+                        icon: { Image(systemName: "calendar") }
+                    )
+                }
+            }
+        }
+    }
+}
+COPIAR CÓDIGO
+Só precisamos fazer mais uma modificação. No arquivo VollmedApp, em vez de deixar a NavigationStack com a SignInView dentro, vamos voltar para a ContentView.
+
+VollmedApp
+@main
+struct VollmedApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+COPIAR CÓDIGO
+Vamos testar para ver se está funcionando, rodando a simulação com "Command + R".
+
+Apareceu a tela de login. Vamos tentar logar com o e-mail do Lucas:
+
+Email: lucas@gmail.com
+Senha: 12345
+Ao clicar em "Entrar", a tela é redirecionada para a página de boas-vindas. Como podemos observar no terminal, tivemos um erro para localizar os especialistas, mas podemos resolver isso em breve. Mas conseguimos o que queríamos!
+
+O que aconteceu?!
+
+Quando realizamos o login, ele salvou o token no UserDefaults na linha 21 da SignInView. A propriedade especial AppStorage, que está definida na ContentView, na linha 12, detectou essa mudança, porque um valor foi inserido na chave token, então ela atualizou a tela. Dessa forma, dentro do if, ele se deu conta de que agora existe algo no token. Então, exibiu a TabView.
+
+O erro de localização de especialistas ocorreu porque a instrutora resetou a API e esqueceu de criar os especialistas de novo. Ela corrigiu e, agora, eles aparecem normalmente na tela.
+Agora que já temos uma verificação para saber se a pessoa usuária está logada ou não, precisamos adicionar o token nas rotas necessárias.
+
+Isso porque, se tentarmos agendar uma consulta, por exemplo, encontraremos um erro, visto que não estamos enviando nenhum token de autenticação. E, para a pessoa usuária conseguir agendar uma consulta, ela precisa estar autenticada. Assim, precisamos enviar esse token.
+
+Então, esperamos você no próximo vídeo!
+
+@@04
+Desafio: adicionando um loading (feedback de carregamento)
+
+Importante! Este desafio é uma atividade opcional e, se preferir, pode continuar o curso sem completá-la. Para desafiar você, este exercício não terá um gabarito ou resposta esperada. A ideia é que você busque a solução por conta própria, simulando o dia a dia de trabalho. Caso queira, pode interagir no Discord da Alura e conferir como outras pessoas solucionaram este desafio.
+Você pode ter percebido que há um delay (atraso ou demora) de quando o usuário se loga e de quando ele é levado para a tela inicial.
+
+Em aplicativos, hoje em dia é comum que façamos requisições para servidores, sejam para buscar, enviar ou até mesmo para validar informações, como estamos fazendo durante este curso.
+
+Durante esse tempo de requisição, é fundamental fornecer um feedback visual para o usuário para que ele saiba que algo está acontecendo. Um dos feedbacks mais utilizados é o indicador de carregamento, também conhecido como "loading spinner" (giro de carregamento).
+
+O seu desafio será implementar um indicador de carregamento para quando o usuário fazer o login no app. Esse indicador aparecerá após o usuário inserir suas credenciais e pressionar o botão de login, e desaparecerá quando a requisição for concluída (com sucesso ou erro).
+
+O resultado final deve parecer com algo do tipo:
+
+Imagem que mostra uma caixa de diálogo com um ícone de carregamento e a palavra “loading”, em português, “carregando”
+
+Requisitos:
+A tela deve apresentar um indicador de carregamento durante a tentativa de login;
+O indicador de carregamento deve ser removido da tela após a finalização da requisição;
+Enquanto o indicador estiver sendo exibido, o usuário não deve ser capaz de interagir com outros componentes na tela (para evitar múltiplas tentativas de login).
+Dica: Use uma variável de estado para controlar o carregamento.
+Por que esse desafio é importante?
+Feedback ao usuário: O indicador de carregamento fornece um feedback visual que garante ao usuário que o aplicativo está processando seu pedido.
+Melhoria da experiência do usuário (UX): Ao evitar que o usuário interaja com a tela enquanto o aplicativo estiver processando, você previne possíveis erros ou comportamentos inesperados.
+Profissionalismo: Apps que fornecem um feedback visual apropriado parecem mais profissionais e bem construídos.
+
+Boa sorte com o desafio e lembre-se: praticar é a chave para dominar qualquer habilidade! Qualquer impedimento, chama a gente para ajudar você!
+
+@@05
+Armazenando informações no UserDefaults
+
+Na construção do nosso aplicativo, precisamos armazenar localmente as informações da pessoa usuária (token, id do paciente), ou seja, essas informações ficarão salvas no dispositivo - e não em um servidor online que necessitaria de uma requisição para API.
+Qual das seguintes afirmações é verdadeira sobre como o código utiliza UserDefaults para gerenciar informações do usuário logado?
+
+O código utiliza a classe UserDefaultsHelper para adicionar, recuperar e remover o token e ID do paciente.
+ 
+Exatamente! A classe UserDefaultsHelper tem métodos save, get e remove que são utilizados no código para manipular dados em UserDefaults, como o token e ID do paciente.
+Alternativa correta
+Quando o paciente realiza logout, somente o token é removido de UserDefaults, o ID do paciente permanece.
+ 
+No método logout, após um logout bem-sucedido, o código remove tanto o token quanto o ID do paciente de UserDefaults.
+Alternativa correta
+O código utiliza UserDefaults para armazenar a senha do paciente para futuras autenticações automáticas.
+ 
+Alternativa correta
+O código verifica se o usuário está logado procurando um token em UserDefaults a cada vez que uma requisição é feita.
+
+@@06
+Adicionando token nas rotas necessárias
+
+Na aula sobre JWT, discutimos o uso do nosso token de autenticação e entendemos ser necessário passar este token via cabeçalho de uma requisição, acompanhado pela palavra-chave bearer antes.
+Quais requisições exigem autenticação?
+Vamos então analisar quais rotas requerem que a pessoa usuária esteja autenticada, no arquivo WebService.
+
+Não é necessário que a pessoa usuária esteja autenticada para visualizar todos os especialistas, então não realizaremos nenhuma modificação na função getAllSpecialists(). O mesmo se aplica ao download de imagens, que não está relacionado à nossa API, na função downloadImage(). .
+
+No entanto, para marcar uma consulta (função scheduleAppointment()), é necessário que a pessoa usuária esteja autenticada. Isso também se aplica para acessar todas as consultas de um paciente (getAllAppointmentsFromPatient()), reagendar uma consulta (rescheduleAppointment()) e cancelar uma consulta (cancelAppointment()).
+
+Para registrar um paciente (registerPatient() ) ou realizar o login de um paciente (loginPatient()), a autenticação não é necessária — afinal, essas rotas retornam o token.
+
+Você pode estar se perguntando: como podemos determinar quais rotas requerem autenticação? Vamos testar algo no Insomnia para ilustrar isso.
+
+Voltando ao Insomnia, vamos clicar em "GET Todos os pacientes" na aba esquerda e copiar o ID de um paciente retornado por essa rota, na aba direita da tela. Por exemplo, o do Lucas:
+
+"id": "701c4af8-068d-4eef-b98a-31267ff4aa6a"
+COPIAR CÓDIGO
+Em seguida, vamos na rota "GET Consultas de um paciente". Na URL, substituiremos o ID do paciente (/id) pelo código que copiamos:
+
+GET localhost:3000/paciente/701c4af8-068d-4eef-b98a-31267ff4aa6a/consultas
+COPIAR CÓDIGO
+Ao enviar a solicitação, clicando em "Send", o servidor me retorna um erro: "Falha ao autenticar o token'". Isso aconteceu porque não passamos nenhum token de autenticação. Portanto, essa rota não pode ser acessada sem autenticação.
+
+Precisamos, então, modificar nossas requisições para incluir o token no cabeçalho.
+
+Verificando token nas rotas
+Voltando ao Xcode, começaremos verificando a existência do token na função scheduleAppointment, logo após a url. Ou seja, vamos verificar se ele está armazenado no UserDefaults. Isso porque, quando recuperamos uma informação do UserDefaults, recebemos um opcional.
+
+Vamos adicionar o seguinte trecho de código:
+
+WebService
+guard let token = UserDefaultsHelper.get(for: "token") else {
+    print("Token não informado")
+    return nil
+}
+COPIAR CÓDIGO
+Agora, vamos adicionar isso ao cabeçalho da nossa requisição. Logo após o request.setValue, escreveremos request.addValue(), porque agora estamos adicionando um valor.
+
+Esse valor será passado numa string com a palavra-chave Bearer antes, para que se identifique ser um token de autenticação. Então, essa string terá essa palavra e uma interpolação da variável token, resultando em "bearer \(token)". O segundo parâmetro, forHTTPHeaderField, receberá `"Authorization".
+
+var request = URLRequest(url:url)
+// código omitido
+request.addValue("bearer \(token)", forHTTPHeaderField: "Authorization")
+COPIAR CÓDIGO
+Isso é tudo que precisamos fazer para recuperar o token e enviá-lo no cabeçalho para uma requisição.
+
+Vamos repetir esse processo para todas as demais requisições que exigem autenticação. Podemos copiar a linha request.addValue() para usá-la em outros lugares.
+
+Na função getAllAppointmentsFromPatient, faremos o mesmo. Antes da url, adicionaremos o guard let token:
+
+guard let token = UserDefaultsHelper.get(for: "token") else {
+    print("Token não informado")
+    return nil
+}
+COPIAR CÓDIGO
+No entanto, temos um problema com a função getAllAppointmentsFromPatient: não estamos usando o URLRequest. Como é uma requisição GET, fizemos isso de uma forma padrão, então precisamos alterar isso.
+
+Então, após a url, criaremos um request do tipo "GET" e, ao fim, passar o request.addValue que copiamos:
+
+var request = URLRequest(url: url)
+request.httpMethod = "GET"
+request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+COPIAR CÓDIGO
+Na linha 131, onde chamamos a URLSession, precisamos alterar o data(from: url), porque não estamos mais passando a URL, mas sim a request. Portanto, deverá ser data(for: request):
+
+let (data, _) = try await URLSession.shared.data(for: request)
+COPIAR CÓDIGO
+Isto deverá funcionar sem problemas agora.
+
+Vamos fazer o procedimento semelhante na função scheduleAppointment. Após url:
+
+guard let token = UserDefaultsHelper.get(for: "token") else {
+    print("Token não informado")
+    return nil
+}
+COPIAR CÓDIGO
+Dentro da request, após setValue, adicionaremos o addValue:
+
+request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+COPIAR CÓDIGO
+Agora, vamos para a última requisição que precisa do token: função cancelAppointment(). Após a url: vamos usar guard let token = UserDefaultsHelper.get(for: "token") para tentar recuperar o token do usuário, caso contrário, vamos imprimir "Token não informado" e retornar false (não podemos retornar nil por ser um retorno booleano):
+
+guard let token = UserDefaultsHelper.get(for: "token") else {
+    print("Token não informado!")
+    return false
+}
+COPIAR CÓDIGO
+Após a recuperação do token, precisamos adicionar o mesmo addValue ao nosso request, após o setValue(), para adicionar o token:
+
+request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+COPIAR CÓDIGO
+Com isso, nós já adaptamos todas as rotas que precisam de um token de autenticação! No entanto, há mais um problema que precisamos consertar neste arquivo deWerbService.
+
+Recuperando o ID do paciente
+Ainda temos o ID do paciente de forma totalmente estática através da variável patientID. Vamos corrigir isso eliminando a variável, executando o aplicativo e adaptando nosso código de acordo com os erros que aparecerão.
+
+Para o primeiro erro que ocorre, na MyAppointmentsView(), antes de do {} dentro da função getAllAppointments(), faremos o seguinte:
+
+guard let patientID = UserDefaultsHelper.get(for: "patient-id") else {
+    return
+}
+COPIAR CÓDIGO
+No código acima, estamos recuperando o ID do paciente armazenado no UserDefaults. Caso não seja possível, não imprimimos nada e apenas retornamos para sair da função.
+
+Em seguida, faremos uma correção similar para o erro que aparece no agendamento da consulta, ou seja, na função scheduleAppointment(), logo antes do do {}:
+
+guard let patientID = UserDefaultsHelper.get(for: "patient-id") else {
+    return
+}
+COPIAR CÓDIGO
+Depois de corrigir os erros, podemos testar nosso aplicativo no simulador.
+
+Conseguimos agendar uma consulta com sucesso, o que significa que deu tudo certo com o token! Além disso, conseguimos conferir a consulta marcada na aba 'Minhas Consultas'.
+
+Tudo parece estar funcionando corretamente. Estamos passando o token para as rotas conforme necessário.
+
+Agora precisamos implementar a funcionalidade de logout para que a pessoa usuária possa finalizar a sessão.
+
+@@07
+Realizando o logout de um usuário
+
+Para realizar o logout de um usuário, vamos começar adicionando um botão no canto superior direito da nossa HomeView. Este botão conterá um ícone e também um texto de logout, para que a pessoa usuária consiga finalizar sua sessão.
+Aparência do botão de Logout
+Vamos construir este botão com o toolbar e o ToolbarItem, para os quais temos conteúdo sobre aqui na Alura.
+
+Na HomeView, desceremos até o final do código. Logo após o .onAppear, vamos colocar um ponto e começar escrevendo o modificador toolbar seguido por abrir e fechar chaves {}. Dentro deste toolbar, vamos escrever ToolbarItem para criar um item, abrir parênteses () e selecionar a opção do placement e do content.
+
+O placement é o lugar onde estará posicionado este botão. Se colocarmos um ponto como seu valor, podemos conferir algumas opções. A opção que queremos é a navigationBarTrailing, mas é avisado que essa será opção depreciada em uma futura versão da iOS. Então, temos que utilizar o topBarTrailing.
+
+No content, daremos dar um "Enter". Teremos:
+
+HomeView
+.toolbar {
+        ToolbarItem(placement: ToolbarTrailing) {
+            code
+        }
+}
+COPIAR CÓDIGO
+Dentro dessas últimas chaves, no lugar de code, vamos criar um botão utilizando Button, com os parâmetros action e label.
+
+A action, por enquanto, deixaremos no comentário. Na label, vamos criar um contêiner horizontal para colocar o ícone e o texto. Então, HStack, abrimos parênteses () para vou definir o espaço (spacing) entre os elementos com 2 para ficarem bem próximos um do outro.
+
+Depois, abrimos e fechamos chaves {}. Dentro delas, colocamos uma imagem usando Image() com o parâmetro systemName para pegar no sf-symbols. Para isso, vamos inserir uma string "rectangle.portrait.and.arrow.right", o ícone mais similar ao ícone de logout (retângulo vertical com uma seta para a direita).
+
+Depois da imagem, colocamos um Text(), que será "Logout". Teremos:
+
+.toolbar {
+    ToolbarItem(placement: .topBarTrailing) {
+        Button(action: {
+            //
+        }) {
+            HStack(spacing: 2) {
+                Image(systemName: "rectangle.portrait.and.arrow.right")
+                Text("Logout")
+            }
+        }
+    }
+}
+COPIAR CÓDIGO
+Vamos verificar se está funcionando com "Command + R". Temos o botão de logout no canto superior direito da nossa tela!
+
+tela de  boas-vindas do aplicativo da VollMed no simulador. no canto superior direito da tela, um ícone de retângulo vertical vazado com uma seta apontando para a direita e o nome "Logout".
+
+Ação do botão de Logout
+Para entender como funciona a requisição de logout, vamos abrir o Insomnia. A requisição "Logout" é do tipo POST e não envia nada com JSON, mas precisamos passar o token de autenticação.
+
+Já tínhamos realizado o login de um usuário anteriormente. Vamos clicar na requisição de login, enviá-la novamente clicando em "Send" e copiar o token gerado:
+
+{
+    "auth": true,
+    "id": "701c4af0-068d-4eef-b98a-31267ff4aa6a",
+    "token":
+    "eyJhbGc101JIUZI1NiIsInR5cC161kpXVCJ9.eyJpZCI6IjcwMWM0YWYWLTA 20GQINGVLZ1110ThhLTMxMjY3ZmYBYWE2YSIsIm1hdCI6MTY5NDcxMDc10Cwi ZXhwIjoxNzI2MjQ2NzU4fQ.XTBJAq8wRPYnkPIqBQmqsTLXHCMGB30Hd3H- }
+    tB91qR
+}
+COPIAR CÓDIGO
+Agora, vamos clicar na requisição "POST logout". Na opção "Bearer", logo abaixo da URL, é onde inserimos o token no Insomnia. No campo de texto "Token", colamos o token que acabamos de copiar.
+
+Em seguida, clicamos em "Send" para enviar a requisição de Logout e ele retorna uma resposta com status code de 200, indicando que a resposta foi bem-sucedida, com auth como falso e token como nulo:
+
+{ 
+    "auth": false,
+    "token": null
+}
+COPIAR CÓDIGO
+Vamos começar construindo essa função no nosso arquivo WebService. retornando ao Xcode. Antes da função loginPatient, vamos escrever func logoutPatient. Essa função não precisa receber nenhum parâmetro específico, pois não precisamos mandar nada para a requisição, e o token pegamos do nosso UsersDefault.
+
+O retorno será um async throws, e vamos simplesmente delimitar que é um booleano, porque faremos o mesmo de quando cancelamos uma consulta. Na hora em que cancelamos, verificamos o status code. Se foi 200, se deu tudo certo ou não, então, retornaremos true ou false baseado nisso.
+
+WebService
+func logoutPatient() async throws -> Bool {
+
+}
+COPIAR CÓDIGO
+Não vamos criar um modelo de dados só para receber as informações de logout, que são auth: false e token: null. Simplesmente vamos retornar true se a requisição for bem-sucedida, ou retornar false caso não seja bem-sucedida.
+
+Então, começamos com o endpoint: let endpoint é igual a baseURL + "/auth/logout", que é a nossa rota.
+
+func logoutPatient() async throws -> Bool {
+    let endpoint = baseURL + "/auth/logout"
+}
+COPIAR CÓDIGO
+Depois, declaramos guard let url = URL(), passando a string, o endpoint. Depois de um else, imprimimos o erro com print("Erro na URL") e retornamos false:
+
+guard let url = URL(string: endpoint) else {
+    print("Erro na URL!")
+    return false
+}
+COPIAR CÓDIGO
+Agora, vamos pegar o token com guard let token = UserDefaultsHelper.get(for: "token"), caso contrário, imprimimos print("Token não informado") e retornamos false:
+
+guard let token = UserDefaultsHelper.get(for: "token") else {
+        print("Token não informado!")
+        return false
+}
+COPIAR CÓDIGO
+Não estamos enviando nada por esta requisição, mas é preciso especificar que o tipo desta requisição também é um POST.
+
+Para isso, criaremos uma variável request igual a URLRequest, passando a url. Depois, request.httpMethod igual a POST.
+
+Por fim, request.addValue para adicionar o token, passando um "Bearer", interpolando a variável token com barra invertida e parênteses. No parâmetro forHTTPHeaderField, passamos a chave "Authorization":
+
+var request = URLRequest(url: url)
+request.httpMethod = "POST"
+request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+COPIAR CÓDIGO
+Agora, vamos enviar a requisição chamando o URLSession. Então, dentro do let (), como não vamos utilizar o data, colocaremos um underline. Mas vamos utilizar o response, que é igual a try await URLSession.shared.data(for: request).
+
+let (_, response) = try await URLSession.shared.data(for: request)
+COPIAR CÓDIGO
+Por fim, faremos a verificação do status code: if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200. Então, damos um return true e, caso contrário, um return false.
+
+if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+        return true
+}
+
+return false
+COPIAR CÓDIGO
+Pronto, já temos a requisição de logout criada!
+
+Chamando a função de logout
+Vamos voltar na HomeView, porque precisamos chamar essa função. Subindo no meu arquivo, criaremos uma função logo abaixo de getSpecialists() chamada logout(), que será assíncrona.
+
+HomeView
+func logout() async {
+
+} 
+COPIAR CÓDIGO
+Onde vamos chamar essa função? Quando a pessoa usuária clicar no botão que acabamos de criar no ToolbarItem.
+
+Dentro da action (ação) desse botão, vamos chamar o Task, nosso contexto assíncrono, e await logout().
+
+.toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+                Button(action: {
+                        Task {
+                                await logout()
+                        }
+                }, label: {
+                        HStack(spacing: 2) {
+                                Image(systemName: "rectangle.portrait.and.arrow.right")
+                                Text("Logout")
+                        }
+                })
+        }
+}
+COPIAR CÓDIGO
+Dentro da função logout(), vamos começar a fazer o do/catch. No catch, daremos um print("Ocorreu um erro no logout: \(error)").
+
+Já no do, faremos um let logoutSuccessful = try await Service.logoutPatient. Faremos, em seguida, uma verificação: if logoutSuccessful, vamos remover do UserDefaults o token e o ID do paciente. Então, UserDefaultsHelper.remove(for: "token") e também UserDefaultsHelper.remove(for: "patient-id").
+
+func logout() async {
+        do {
+                let logoutSuccessful = try await service.logoutPatient()
+                if logoutSuccessful {
+                        UserDefaultsHelper.remove(for: "token")
+                        UserDefaultsHelper.remove(for: "patient-id")
+                }
+        } catch {
+                print("Ocorreu um erro no logout: \(error)")
+        }
+}
+COPIAR CÓDIGO
+Você pode estar pensando: "poderíamos fazer esse if try await direto sem precisar criar uma variável". É verdade. Mas, vamos manter essa variável para deixar tudo mais descritivo.
+
+Agora, vamos executar a aplicação e verificar ver se deu tudo certo.
+
+No simulador, clicamos em "Logout" no canto superior direito da tela. Voltamos para a tela de login! Isso significa que o logout foi realizado com sucesso.
+
+Por que isso acontece? Porque estamos removendo a chave token do UserDefaults. Então, a propriedade especial @AppStorage, que está definida na ContentView, irá detectar essa mudança e recarregar essa view, fazendo, então, com que ela navegue para a tela de login.
+
+Agora temos um login totalmente funcional e precisamos começar a discutir um pouco mais sobre boas práticas de segurança da nossa aplicação.
+
+Por isso, nos encontramos no próximo vídeo.
+
+@@08
+Token de autenticação
+
+Durante a construção do sistema de autenticação do Vollmed, precisamos oferecer a possibilidade do usuário se deslogar do aplicativo.
+Como podemos fazer isso em relação ao token de autenticação?
+
+Utilizando o header "Authentication" com o valor "Token (token)".
+ 
+Falso! Não se utiliza o cabeçalho "Authentication" com o valor "Token (token)" para incluir o token de autenticação.
+Alternativa correta
+Utilizando o header "Authorization" com o valor "Bearer (token)".
+ 
+Isso mesmo! No método logoutPatient, é visível a linha request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization"), indicando que o token é incluído no header "Authorization" com o prefixo "Bearer ".
+Alternativa correta
+Adicionando o token diretamente ao corpo da requisição HTTP.
+ 
+O token de autenticação não é adicionado ao corpo da requisição quando se deseja fazer logout. Em vez disso, ele é adicionado ao cabeçalho da requisição.
+Alternativa correta
+O token não é necessário para realizar o logout, então não é incluído na requisição.
+ 
+Ainda não! O token é necessário para fazer logout e é incluído na requisição.
+
+@@09
+Para saber mais: expiração do token
+
+A expiração do token refere-se ao período de tempo que um token de autenticação permanece válido. Uma vez gerado, esse token tem uma "data de validade", após a qual ele não é mais aceito pelo sistema para fins de autenticação ou autorização.
+Por que os tokens possuem essa expiração?
+A razão principal é segurança. Tokens podem ser interceptados ou roubados; ao limitar a sua validade, você limita o tempo em que um ator mal-intencionado pode abusar dele. Além disso, a expiração ajuda a garantir que os usuários retornem periodicamente para reautenticar e, potencialmente, revalidar suas permissões.
+
+E de quanto tempo é a validade do token no nosso caso?
+Na API que foi construída para utilização deste projeto, os tokens possuem uma validade de 1 ano.
+
+Note que 1 ano é um período consideravelmente longo para a validade de um token, a maioria das aplicações no mundo real não possuem um token com validade tão longa. Entretanto, por fins didáticos, preferimos manter desta forma.
+
+E como lidar com a expiração do token?
+Monitoramento ativo: Uma prática comum em aplicações é monitorar ativamente a validade do token no lado do cliente. Quando um token está prestes a expirar, ou assim que ele expira, o sistema pode:
+a. Solicitar reautenticação: Simplesmente peça ao usuário para fazer login novamente.
+
+b. Renovar automaticamente com refresh tokens: Muitos sistemas utilizam o que é chamado de "refresh token". Este é um token secundário que é emitido juntamente com o token principal e tem a capacidade de solicitar um novo token sem que o usuário precise fazer login novamente. Entretanto, a nossa API não possui tal funcionalidade.
+
+Trate exceções de tokens expirados: No lado do servidor, sempre que um token expirado for recebido, uma resposta específica (geralmente com o status 401 - Unauthorized) deve ser enviada. O lado do cliente deve ser capaz de interpretar essa resposta e agir de acordo - seja solicitando ao usuário para fazer login novamente ou usando um refresh token para obter um novo token de acesso.
+Feedback ao usuário: Se um token estiver expirado e uma ação requer autenticação, informe o usuário de forma clara e direta sobre a necessidade de se autenticar novamente.
+Concluindo, a expiração do token é um mecanismo que aprimora a segurança e a integridade do processo de autenticação. Lidar com tokens expirados requer monitoramento ativo, comunicação clara ao usuário e estratégias como a utilização de refresh tokens para oferecer uma boa experiência ao usuário enquanto mantém o sistema seguro.
+
+@@10
+Faça como eu fiz: salvando token de autenticação e utilizando-o nas rotas
+
+Vamos implementar, então, a parte do token! Siga as instruções:
+1 - Salvar, ler e remover dados do UserDefaults:
+
+a) Defina o UserDefaultsHelper para armazenar e recuperar informações (como token e ID) do paciente no UserDefaults. Além disso, remover também.
+        struct UserDefaultsHelper {
+            ...
+        }
+COPIAR CÓDIGO
+2 - Salvando o token e o ID do paciente após o login:
+
+a) Depois de chamar o método de login, armazene o token e o ID do paciente usando o helper.
+        func login() async {
+            ...
+            UserDefaultsHelper.save(value: response.token, key: "token")
+            UserDefaultsHelper.save(value: response.id, key: "patient-id")
+            ...
+        }
+COPIAR CÓDIGO
+3 - Verificando o status de login:
+
+a) Use @AppStorage para observar o token e verificar se ele está presente;
+b) Baseado no token, defina a tela que deve ser mostrada para o usuário (tela de login ou tela inicial).
+        @AppStorage("token") var token: String = ""
+        
+        if token.isEmpty {
+            NavigationStack {
+                SignInView()
+            }
+        } else {
+          TabView {
+              ...
+          }
+        }
+COPIAR CÓDIGO
+4 - Adicionando token nas requisições:
+
+a) Antes de fazer requisições que precisam de autenticação, recupere o token e adicione-o ao header da requisição.
+        guard let token = UserDefaultsHelper.get(for: "token") else {
+            ...
+        }
+        
+        request.addValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+COPIAR CÓDIGO
+5 - Recuperando o ID do paciente:
+
+a) Nas requisições que o ID do paciente é necessário, obtenha-o do UserDefaultsHelper.
+        guard let patientID = UserDefaultsHelper.get(for: "patient-id") else {
+            return
+        }
+COPIAR CÓDIGO
+6 - Realizando o logout:
+
+a) Implemente a função logoutPatient que chama uma rota de logout e, se for bem-sucedido, remove o token e o ID do paciente do UserDefaults.
+        func logoutPatient() async throws -> Bool {
+            ...
+            if logoutSuccessful {
+                UserDefaultsHelper.remove(for: "token")
+                UserDefaultsHelper.remove(for: "patient-id")
+            }
+        }
+COPIAR CÓDIGO
+7 - Botão de logout:
+
+a) Adicione um botão na barra de ferramentas que, ao ser pressionado, chama a função de logout.
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: {
+                    Task {
+                        await logout()
+                    }
+                }, label: {
+                    ...
+                })
+            }
+        }
+
+
+Nesta aula, abordamos um aspecto importante no desenvolvimento de aplicativos - a gestão de autenticação. O manejo seguro e eficaz do token de autenticação é essencial para a experiência do usuário e para a segurança da aplicação.
+Mergulhamos em como usar o UserDefaults para armazenar e recuperar informações vitais, bem como como implementar o fluxo de login/logout para garantir que os usuários tenham acesso apenas ao que devem.
+
+Explore o progresso do projeto no GitHub.
+
+A medida que você continua a construir, tenha em mente a importância da segurança do usuário. Sempre esteja aberto a aprendizado e melhoria. E como sempre, estamos aqui para ajudar no fórum ou no discord!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/aula-04
+
+@@11
+O que aprendemos?
+
+Nesta aula, você aprendeu a:
+Salvar o token de autenticação e ID do paciente usando UserDefaults;
+Verificar se um usuário está devidamente autenticado no aplicativo;
+Incluir o token nas rotas que necessitam de autenticação;
+Implementar a funcionalidade de logout para um usuário.
+Agora já temos uma aplicação totalmente funcional!
+
+Vamos fazer os últimos retoques na aula a seguir.
