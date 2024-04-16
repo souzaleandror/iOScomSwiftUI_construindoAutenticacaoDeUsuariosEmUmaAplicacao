@@ -2653,3 +2653,924 @@ Implementar a funcionalidade de logout para um usuário.
 Agora já temos uma aplicação totalmente funcional!
 
 Vamos fazer os últimos retoques na aula a seguir.
+
+#### 16/04/2024
+
+@05-Boas práticas de segurança
+
+@@01
+Projeto da aula anterior
+
+Você pode revisar o seu código e acompanhar o passo a passo do desenvolvimento do nosso projeto através desta branch no Github e, se preferir, pode baixar o projeto da aula anterior.
+Bons estudos!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/aula-04
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/archive/refs/heads/aula-04.zip
+
+@@02
+Conhecendo o Keychain
+
+Até o momento, estávamos utilizando o UserDefaults para armazenar o token de autenticação e também o ID do paciente.
+Entretanto, o UserDefaults não é a melhor opção quando estamos tratando de dados sensíveis, como tokens de autenticação, porque é muito fácil ter acesso a esse token com o UserDefaults, já que ele não é criptografado.
+Portanto, as informações ficam armazenadas como texto aberto e são de fácil acesso. Isso não é uma boa prática.
+
+Uma vez que você tem o token de autenticação, você pode obter informações sensíveis do usuário através desse token. Portanto, usar o UserDefaults para armazenar esse tipo de dado não é recomendado.
+
+Quando falamos de informações sensíveis, como senhas, chaves secretas e tokens de autenticação, é mais adequado armazená-las em um lugar chamado Keychain, um serviço de segurança do iOS, que é criptografado e muito mais seguro.
+
+Agora, será preciso fazer uma modificação na nossa aplicação, pois vamos migrar do uso do UserDefaults para o Keychain, salvando o token de autenticação e o ID do paciente.
+
+Dados sensíveis com Keychain
+Antes de partir para o código, vamos fazer uma analogia do UserDefaults com o Keychain. Imagine que você esteja armazenando suas joias. Você as armazenaria em uma caixa transparente, bem ao meio da sala, ou em um cofre de alta segurança? Podemos comparar o UserDefaults à caixa transparente e o Keychain ao cofre de alta segurança.
+
+Pois, quando falamos de token de autenticação, imagine que o token seja como a chave para sua casa. Se essa chave for armazenada debaixo do tapete de entrada, qualquer pessoa que tiver acesso a chave debaixo do tapete conseguirá acessar sua casa de forma simples.
+
+Portanto, o UserDefaults é específico para guardar informações que não são sensíveis, como preferências, configurações da pessoa usuária, de uma maneira persistente. Já o Keychain é mais seguro para armazenar essas informações sensíveis.
+Como estamos lidando com informações sensíveis, vamos utilizar o Keychain.
+
+Agora, falando sobre o código, já podemos adiantar que a implementação nativa do Keychain é complexa. É daquele tipo de código que exige uma atenção constante na documentação, muita pesquisa na internet e, muitas vezes, é um copia e cola.
+
+Existem algumas bibliotecas que facilitam esse processo, mas quisemos apresentar a forma nativa. Porém, como mencionamos que é um código complicado de ser escrito, já trouxemos esse código pronto.
+
+Criamos um arquivo chamado KeychainHelper dentro da pasta "Services". Esse arquivo possui as mesmas funções que definimos no UserDefaultsHelper. Portanto, temos uma função estática para salvar um valor para uma determinada chave, porque o Keychain também funciona da mesma maneira do UserDefaults. Temos um valor para uma respectiva chave.
+
+KeychainHelper.swift:
+struct KeychainHelper {
+    static func save(value: String, key: String) {
+        guard let data = value.data(using: .utf8) else { return }
+        
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data
+        ]
+        
+        SecItemDelete(query as CFDictionary)
+        SecItemAdd(query as CFDictionary, nil)
+    }
+
+// código omitido…
+}
+COPIAR CÓDIGO
+Portanto, temos essa função save() para salvar, que basicamente converte o valor (value), que é uma string, em um objeto do tipo data, utilizando o padrão de codificação UTF-8. Nesta função, é criado um query que é dicionário com alguns atributos, como a chave (key) e também o valor, convertido em data.
+
+No final, a linha SecItemDelete() assegura que, se já existir um valor associado a uma chave, ele removerá esse valor e, por fim, adiciona a query com chave e valor no Keychain.
+
+static func get(for key: String) -> String? {
+        let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key,
+                kSecReturnData as String: kCFBooleanTrue!,
+                kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var dataTypeRef: AnyObject?
+        let status: OSStatus = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+
+        if status == errSecSuccess {
+                if let data = dataTypeRef as? Data {
+                        return String(data: data, encoding: .utf8)
+                }
+        }
+        return nil
+}
+COPIAR CÓDIGO
+Também temos a função get(), que basicamente recupera um valor do Keychain. E, se ele não encontrar nenhum valor correspondente à chave, retorna um nil, ou seja, uma string opcional.
+
+static func remove(for key: String) {
+        let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: key
+        ]
+        SecItemDelete(query as CFDictionary)
+}
+COPIAR CÓDIGO
+E, finalmente, temos a função remove(), que remove algo do Keychain.
+
+Substituindo UserDefaultsHelper por KeychainHelper
+Com o arquivo já criado, o que precisamos fazer? Precisamos modificar de onde estamos utilizando o UserDefaultsHelper em nossa aplicação para o KeychainHelper.
+
+Para isso, no canto superior esquerdo, vamos clicar no ícone de lupa, que representa a barra de pesquisa. Nesta barra, pesquisaremos por UserDefaultsHelper para verificar onde estamos utilizando essa instrução e assim realizar a mudança para Keychain.
+
+Identificamos que o utilizamos na tela de login. Na função login(), trocaremos ambos UserDefaultsHelper para KeychainHelper. Não é necessário fazer mais nada, pois as funções são as mesmas, como mencionamos anteriormente, a função de salvar, obter algo e também de remover.
+
+É uma boa prática passar o nome de nossas chaves, como, por exemplo, app-vollmed-token. Essa será uma identificação de qual aplicativo está utilizando essa chave. Faremos o mesmo para o patient-id, portanto, app-vollmed-patient-id.
+
+SignInView.swift:
+func login() async {
+        do {
+                if let response = try await service.loginPatient(email: email, password: password) {
+                        KeychainHelper.save(value: response.token, key: "app-vollmed-token")
+                        KeychainHelper.save(value: response.id, key: "app-vollmed-patient-id")
+                } else {
+                        showAlert = true
+                }
+        } catch {
+                showAlert = true
+                print("Ocorreu um erro no login: \(error)")
+        }
+}
+COPIAR CÓDIGO
+Vamos para o próximo arquivo, MyAppointmentsView, onde está sendo utilizada a variável patientID. Na função getAllAppointments(), mudaremos para KeychainHelper e a chave será app-vollmed-patient-id.
+
+MyAppointmentsView.swift:
+func getAllAppointments() async {
+        guard let patientID = KeychainHelper.get(for: "app-vollmed-patient-id") else {
+                return
+        }
+
+        // código omitido…
+}
+COPIAR CÓDIGO
+No arquivo ScheduleAppointmentsView, substituiremos UserDefaultHelper por KeychainHelper, mantendo a chave app-vollmed-patient-id.
+
+ScheduleAppointmentsView.swift:
+func scheduleAppointment() async {
+        guard let patientID = KeychainHelper.get(for: "app-vollmed-patient-id") else {
+                return
+        }
+
+        // código omitido…
+}
+COPIAR CÓDIGO
+Chegamos no arquivo HomeView, onde também precisamos realizar a troca na parte de logout. Portanto, dentro da função logout(), teremos dois KeychainHelper.remove(). Em vez da chave token, utilizaremos app-vollmed-token e app-vollmed-patient-id.
+
+HomeView.swift:
+func logout() async {
+        do {
+                let logoutSuccessful = try await service.logoutPatient()
+                if logoutSuccessful {
+                        KeychainHelper.remove(for: "app-vollmed-token")
+                        KeychainHelper.remove(for: "app-vollmed-patient-id")
+                }
+        } catch {
+                print("Ocorreu um erro no logout: \(error)")
+        }
+}
+COPIAR CÓDIGO
+Agora temos o WebService. Vamos substituir na função scheduleAppointment() novamente para KeychainHelper e app-vollmed-token.
+
+WebService.swift:
+func scheduleAppointment(specialistID: String,
+                                                 patientID: String,
+                                                 date: String) async throws -> ScheduleAppointmentResponse? {
+        // código omitido…
+
+        guard let token = KeychainHelper.get(for: "app-vollmed-token") else {
+                print("Token não informado!")
+                return nil
+        }
+
+        // código omitido…
+}
+COPIAR CÓDIGO
+Faremos as mesmas substituições nas funções getAllAppointmentsFromPatient(), rescheduleAppointment(), cancelAppointment() e, por fim, em logoutPatient() também.
+
+Próximo passo
+Com isso, concluímos a adaptação de UserDefaults para Keychain. Agora, vamos testar nossa aplicação, executando com o "Command + R". Quando o simulador abrir, vamos tentar entrar na conta do Lucas.
+
+Ao informar o e-mail e a senha, não recebemos um alerta de erro. Isso significa que o login foi realizado com sucesso, embora não tenha sido direcionado para a tela inicial. Por que isso está acontecendo?
+
+No arquivo ContentView, estávamos utilizando a propriedade @AppStorage. Entretanto, essa propriedade funciona apenas com UserDefaults e não com Keychain. Portanto, nossa tela não está sendo atualizada para entrar na condição if, para verificar se o token é nulo ou não, se o token está salvo ou não.
+
+Portanto, precisamos fazer algumas modificações. Precisamos pensar em uma nova lógica para quando a pessoa usuária entrar na aplicação e o token for salvo com sucesso no Keychain. O programa precisa receber essa modificação e, então, direcionar a pessoa usuária para a tela inicial.
+
+Nos encontramos no próximo vídeo para começar essa implementação.
+
+@@03
+Preparando o ambiente: código do KeychainHelper
+
+É importante que você siga as instruções deste “preparando o ambiente” para prosseguir com seus estudos. Vamos lá?
+Durante o vídeo, comentei sobre o Keychain e como precisamos adicionar esse código no nosso projeto.
+
+Vamos ao código!
+Para facilitar o uso do Keychain, trouxemos uma implementação simplificada chamada KeychainHelper. Isso abstrai a complexidade da API nativa e fornece uma interface mais amigável para salvar, recuperar e remover informações do Keychain.
+
+import Foundation
+
+struct KeychainHelper {
+    static func save(value: String, key: String) {
+        guard let data = value.data(using: .utf8) else { return }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data
+        ]
+
+        SecItemDelete(query as CFDictionary)
+        SecItemAdd(query as CFDictionary, nil)
+    }
+
+    static func get(for key: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: kCFBooleanTrue!,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var dataTypeRef: AnyObject?
+        let status: OSStatus = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+
+        if status == errSecSuccess {
+            if let data = dataTypeRef as? Data {
+                return String(data: data, encoding: .utf8)
+            }
+        }
+        return nil
+    }
+
+    static func remove(for key: String) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key
+        ]
+        SecItemDelete(query as CFDictionary)
+    }
+}
+COPIAR CÓDIGO
+Passo a passo:
+Integre o KeychainHelper em seu projeto.
+Modifique qualquer implementação anterior que usava UserDefaults para armazenar informações sensíveis e substitua pelo uso do KeychainHelper.
+Teste as funcionalidades de salvar, recuperar e remover informações do Keychain usando o KeychainHelper.
+E o que é Keychain?
+O Keychain é uma ferramenta de gerenciamento de segurança disponibilizada pela Apple para dispositivos iOS, macOS, watchOS e tvOS. Ele permite que os desenvolvedores armazenem informações sensíveis, como senhas, chaves de criptografia e tokens de autenticação, de maneira segura.
+
+As informações salvas no Keychain são criptografadas e podem ser acessadas apenas por aplicativos autorizados. Isso faz do Keychain uma escolha preferencial para armazenar informações que não devem ser facilmente acessadas ou visíveis para usuários ou outros aplicativos.
+
+Embora o conceito do Keychain seja simples, sua implementação nativa no iOS é relativamente complicada.
+
+Recomenda-se sempre revisar a documentação oficial ao trabalhar com o Keychain. Isso ajudará você a entender todas as capacidades disponíveis e a evitar erros comuns.
+
+Conclusão
+Sempre priorize a segurança em seu aplicativo, especialmente ao lidar com informações sensíveis. O Keychain é uma ótima ferramenta para isso. Lembre-se, a segurança não é apenas uma camada adicionada no final do desenvolvimento, mas uma consideração contínua em todo o ciclo de vida do desenvolvimento do aplicativo.
+
+@@04
+Para saber mais: entendendo o código do Keychain e conhecendo bibliotecas
+
+Vamos entender passo a passo do que está acontecendo no código de implementação do Keychain, que vimos durante esta aula.
+Função de salvar dados
+static func save(value: String, key: String) {
+    guard let data = value.data(using: .utf8) else { return }
+
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrAccount as String: key,
+        kSecValueData as String: data
+    ]
+
+    SecItemDelete(query as CFDictionary)
+    SecItemAdd(query as CFDictionary, nil)
+}
+COPIAR CÓDIGO
+No código acima, estamos definindo uma função save que tem a finalidade de salvar dados no Keychain. Ela é static, o que significa que você pode chamar esta função sem criar uma instância da estrutura. Ela aceita dois parâmetros: o value que é o valor que você deseja salvar e a key que é a chave associada a esse valor.
+
+Nessa função, tentamos converter a String do valor para um tipo Data usando a codificação utf8. Se a conversão falhar, a função irá retornar e não executar o código subsequente.
+
+Então, criamos um dicionário chamado query que descreve os atributos do item que queremos salvar no Keychain.
+
+O kSecClass especifica a "classe" do item que você está querendo adicionar, buscar ou modificar no Keychain. O Keychain suporta vários tipos diferentes de itens, e o kSecClass ajuda a categorizar esses itens. Os valores possíveis para kSecClass incluem:
+
+kSecClassGenericPassword: Representa um item de senha genérica.
+kSecClassInternetPassword: Representa um item de senha para recursos da Internet, como senhas FTP ou HTTP.
+kSecClassCertificate: Representa um item de certificado.
+kSecClassKey: Representa uma chave criptográfica (poderíamos usar este para o token também).
+kSecClassIdentity: Representa uma identidade, que é uma combinação de chave privada e certificado.
+Já o kSecAttrAccount é um dos muitos atributos que você pode definir para um item do Keychain. Especificamente, kSecAttrAccount é usado para armazenar o "nome da conta" para um item. Por exemplo, se você estiver armazenando uma senha para um e-mail, o endereço de e-mail poderia ser o valor do kSecAttrAccount, enquanto a senha seria armazenada como o valor do item em si.
+
+Em termos mais simples, kSecAttrAccount é geralmente usado como uma "chave" ou "identificador" para o item que você está armazenando, ajudando você a buscá-lo mais tarde.
+
+A função save usa a chave fornecida como valor para kSecAttrAccount para identificar unicamente o item que está sendo salvo. Da mesma forma, as funções get e remove usam essa chave para buscar e remover o item apropriado, respectivamente.
+
+E então, kSecValueData é usada para especificar os dados reais ou o conteúdo que você deseja armazenar no Keychain. No contexto dos tokens, kSecValueData seria o valor do token em si.
+
+Por fim, o código tenta deletar qualquer item existente no Keychain com a mesma chave. Em seguida, adiciona o novo item com a chave e valor fornecidos.
+
+Função de recuperar dados
+static func get(for key: String) -> String? {
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrAccount as String: key,
+        kSecReturnData as String: kCFBooleanTrue!,
+        kSecMatchLimit as String: kSecMatchLimitOne
+    ]
+
+    var dataTypeRef: AnyObject?
+    let status: OSStatus = SecItemCopyMatching(query as CFDictionary, &dataTypeRef)
+
+    if status == errSecSuccess {
+        if let data = dataTypeRef as? Data {
+            return String(data: data, encoding: .utf8)
+        }
+    }
+    return nil
+}
+COPIAR CÓDIGO
+Esta é uma função para recuperar um valor associado a uma chave do Keychain.
+
+Assim como na função save, estamos definindo um query para descrever o item que queremos buscar.
+
+Usamos a função SecItemCopyMatching para buscar um item no Keychain que corresponda à nossa query. O resultado é armazenado em dataTypeRef.
+
+Se a busca foi bem-sucedida (status == errSecSuccess), tentamos converter o resultado em Data e depois em String. Se qualquer parte falhar, retornamos nil.
+
+Função para remover dados
+static func remove(for key: String) {
+    let query: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrAccount as String: key
+    ]
+    SecItemDelete(query as CFDictionary)
+}
+COPIAR CÓDIGO
+Esta função remove um item associado à chave fornecida do Keychain.
+
+Novamente, definimos uma query para descrever o item que queremos remover. E então, chamamos a função SecItemDelete para remover o item do Keychain.
+
+Conhecendo bibliotecas
+Existem bibliotecas (dependências) de terceiros que abstraem todo o código de implementação do Keychain, fornecendo uma interface muito mais amigável para nós, desenvolvedores, não nos preocuparmos com a implementação por baixo dos panos.
+
+Alguns exemplos de dependências constituem em:
+
+KeychainSwift;
+KeychainAccess.
+Essas bibliotecas simplificam o processo de interação com o Keychain, permitindo um desenvolvimento mais rápido e menos propenso a erros. Ao usar essas abstrações, você pode focar no que realmente importa para o aplicativo, sem se perder nos detalhes da implementação do Keychain.
+
+Ambas as bibliotecas são amplamente usadas pela comunidade de desenvolvedores iOS e são bem documentadas. No entanto, antes de escolher qualquer biblioteca, é sempre uma boa ideia avaliar o projeto em termos de requisitos e verificar qual delas se adapta melhor ao escopo do aplicativo. Também é importante manter-se atualizado sobre qualquer atualização de segurança ou mudanças no Keychain fornecidas pela Apple, para garantir que seu aplicativo permaneça seguro e funcional.
+
+@@05
+UserDefaults ou Keychain?
+
+Imagine que estamos desenvolvendo um aplicativo de gerenciamento de finanças pessoais. Dentro do aplicativo, queremos armazenar informações sobre as categorias de gastos favoritos do usuário, bem como o token de autenticação para manter o usuário conectado.
+Com base neste cenário e considerando o Keychain e UserDefaults, analise as seguintes afirmações. Selecione as que são verdadeiras:
+
+firmações. Selecione as que são verdadeiras:
+
+Alternativa correta
+Se quiséssemos implementar uma funcionalidade em que os usuários pudessem trocar temas (como modo escuro ou claro), o armazenamento dessas preferências no Keychain seria a abordagem mais adequada.
+ 
+Alternativa correta
+Se o nosso aplicativo armazenasse informações de contas bancárias do usuário, como números de conta, seria ideal usar UserDefaults.
+ 
+Alternativa correta
+Para armazenar as categorias de gastos favoritos do usuário, é apropriado usar o Keychain, pois essa é uma informação altamente sensível.
+ 
+Alternativa correta
+Dada a necessidade de manter o usuário conectado, o nosso aplicativo deve armazenar o token de autenticação no Keychain.
+ 
+Isso mesmo! Tokens de autenticação são dados sensíveis e o Keychain oferece a camada extra de segurança necessária para armazená-los.
+Alternativa correta
+Ao armazenar o token de autenticação no Keychain, vamos demorar mais e precisaremos lidar com uma complexidade maior do que armazenar preferências de usuário no UserDefaults.
+ 
+Correto! Devido à criptografia e às camadas adicionais de segurança, trabalhar com o Keychain é mais complexo em comparação com UserDefaults.
+
+@@06
+Criando um AuthenticationManager
+
+Agora precisamos pensar em uma solução para conectar o token que está sendo salvo no Keychain com o ID do paciente e também com a nossa ContentView para realizar a mudança de telas necessárias, de acordo com a condicional.
+Porque o @AppStorage não funciona mais, ele só funciona com o UserDefaults. Para fazer essa conexão, precisaremos conhecer algumas propriedades especiais do SwiftUI, os chamados property wrappers.
+
+Contudo, antes disso, vamos pensar em uma solução: podemos criar uma classe chamada AuthenticationManager. Essencialmente, essa classe conterá todas as responsabilidades envolvendo autenticação, como, por exemplo, salvar e remover token e salvar e remover o ID do paciente.
+
+Dessa forma, temos uma camada de abstração. Isso é relevante, pois, por exemplo, se acessamos SignInView, na função login(), estamos chamando diretamente os métodos do KeychainHelper. Portanto, essa classe de abstração vai nos ajudar a atribuir melhor as responsabilidades da nossa aplicação.
+
+Authentication Manager
+Na pasta raiz do projeto, vamos criar uma nova pasta, clicando com o botão direito e selecionando "New Group". Vamos chamá-la de "Managers". Dentro dessa pasta "Managers", vamos criar um novo arquivo swift, e chamá-lo de AuthenticationManager.
+
+Vamos começar definindo uma classe AuthenticationManager e logo entenderão o motivo do uso de class em vez de strict. Dentro dessa classe, vamos definir duas propriedades, o token e o patientID, que serão opcionais, porque pode ter um token salvo ou não.
+
+No corpo da classe, definimos var token que é do tipo String? e var patientID que também é do tipo String?.
+
+Agora, vamos criar um construtor que será utilizado para inicializar as nossas variáveis. Basta escrever init() e, dentro, self.token que será igual ao que pegamos do keychain, ou seja, KeychainHelper.get(), passando for e a chave do token, app-vollmed-token.
+
+Faremos o mesmo para o patientID. Isto é, self.patientID igual à KeychainHelper.get(for: "app-vollmed-patient-id").
+
+AuthenticationManager.swift:
+import Foundation
+
+class AuthenticationManager {
+        var token: String?
+        var patientID: String?
+
+        init() {
+                self.token = KeychainHelper.get(for: "app-vollmed-token")
+                self.patientID = KeychainHelper.get(for: "app-vollmed-patient-id")
+        }
+}
+COPIAR CÓDIGO
+Posteriormente, criaremos nossos métodos. Vamos criar uma função func chamada saveToken(), passando o valor do token. Para isso, escrevemos o parâmetro token que é do tipo String.
+
+Dentro desta função, chamaremos o método save do KeychainHelper. Para isso, escrevemos KeychainHelper.save(), indicando que value será o token que passamos como parâmetro e key será app-vollmed-token. Essa função é específica para salvar apenas o token, por isso, passamos a chave diretamente.
+
+Agora atualizaremos nossa variável token que está definida dentro dessa classe. Então, self.token é igual a token.
+
+func saveToken(token: String) {
+        KeychainHelper.save(value: token, key: "app-vollmed-token")
+        self.token = token
+}
+COPIAR CÓDIGO
+Em seguida, criaremos uma função para remover o token. Essa função removeToken() não recebe nenhum parâmetro, porque só vamos utilizar a chave.
+
+Dentro dela, escrevemos KeychainHelper.remove(), passando for e a chave app-vollmed-token. Então, vamos definir self.token igual à nil já que o removemos do Keychain.
+
+func removeToken() {
+        KeychainHelper.remove(for: "app-vollmed-token")
+        self.token = nil
+}
+COPIAR CÓDIGO
+Agora faremos o mesmo para o ID do paciente. Também estamos salvando o ID do paciente no Keychain, porque se tivéssemos um acesso fácil à informação do ID do paciente, poderíamos obter informações sensíveis desse paciente também. Por isso, estamos tratando essa dado como uma informação sensível.
+
+Vamos criar uma func savePatientID(), passando o parâmetro id que é do tipo String. No corpo, escrevemos KeychainHelper.save(), sendo value o parâmetro id e key o app-vollmed-patient-id.
+
+Depois, digitamos self.patientID igual à id que recebemos como parâmetro.
+
+func savePatientID(id: String) {
+        KeychainHelper.save(value: id, key: "app-vollmed-patient-id")
+        self.patientID = id
+}
+COPIAR CÓDIGO
+Agora, vamos fazer a função de remover, a func removePatientID(). Não vamos passar nenhum parâmetro porque só precisamos da chave. Então, KeychainHelper.remove(), passando a chave app-vollmed-patient-id. Também vamos atualizar a variável self.patientID para nil.
+
+func removePatientID() {
+        KeychainHelper.remove(for: "app-vollmed-patient-id")
+        DispatchQueue.main.async {
+                self.patientID = nil
+        }
+}
+COPIAR CÓDIGO
+Portanto, já temos as funções criadas.
+
+@@07
+Utilizando as propriedades especiais @ObservedObject e @Published
+
+Agora, vamos conhecer as duas novas Property Wrappers no SwiftUI.
+Property Wrappers
+A primeira é chamada de @Published. Essa Property Wrapper é utilizada antes dos atributos definidos em uma classe.
+
+Essa Property Wrapper significa que essas variáveis serão monitoradas por uma view, uma tela que esteja observando a classe em questão. Vamos entender melhor na prática.
+
+Em AuthenticationManager, adicionaremos antes das minhas variáveis token e patientID, um @Published. As duas variáveis serão então monitoradas, quer dizer que elas serão publicadas, por assim dizer.
+
+AuthenticationManager.swift:
+class AuthenticationManage {
+    @Published var token: String?
+    @Published var patientID: String?
+
+    // código omitido…
+}
+COPIAR CÓDIGO
+A próxima etapa é instanciar a classe AuthenticationManager na ContentView. Desta forma, retornarei à ContentView e definiremos o var authManager igual à AuthenticationManager(). Observe que também removemos a linha @AppStorage, já que nós não vamos utilizá-la.
+
+Entretanto, para que as propriedades token e patientID sejam monitoradas, é necessário definir que a classe AuthenticationManager está sendo observada pela struct ContentView, ou seja, a view. Fazemos isso através de outra Property Wrapper chamada @ObservedObject.
+
+Desse modo, antes do var authManager, colocaremos um @ObservedObject.
+
+ContentView.swift:
+struct ContentView: View {
+
+    @ObservedObject var authManager = AuthenticationManager()
+
+// código omitido…
+}
+COPIAR CÓDIGO
+Isso significa que a struct ContentView está observando a classe AuthenticationManager. E na classe AuthenticationManager, nós temos essas duas propriedades marcadas como @Published. Quando alguma alteração for realizada nelas, então vai notificar a view que está observando essa classe.
+
+No entanto, ao retornar à ContentView, foi gerado um erro. Qual é o erro? Ele informa que a struct ObservedObject precisa que a classe AuthenticationManager se adapte ao protocolo ObservableObject.
+
+Portanto, retornaremos ao AuthenticationManager e logo após o meu class AuthenticationManager, adicionamos dois-pontos e ObservableObject. E isso só pode ser feito em classes e não em structs.
+
+AuthenticationManager.swift:
+class AuthenticationManage: ObservableObject {
+    // código omitido…
+}
+COPIAR CÓDIGO
+Agora ao voltar para ContentView, outro erro será emitido, pois ele informa "cannot find 'token' in scope", ou seja, ele não consegue achar a variável token pois removemos @AppStorage.
+
+Sendo assim, vamos modificar essa verificação. Vamos apagar esse if e escrever if authManager.token == nil. Estamos fazendo uma verificação se o token é nil, porque se for nil, significa que não tem nada salvo no Keychain, portanto, ele vai navegar para a tela de login.
+
+ContentView.swift:
+if authManager.token == nil {
+        NavigationStack {
+                SignInView()
+        }
+ }
+COPIAR CÓDIGO
+O próximo passo é ir para a tela de login, no arquivo SignInView. É preciso substituir o KeychainHelper.save() para utilizar a classe AuthenticationManager.
+
+Logo após o @State private var showAlert, vamos criar uma instância dessa AuthenticationManager. Isto é, @ObservableObject para observar a classe seguido de var authManager igual à AuthenticationManager(). Ao invés de utilizar o KeychainHelper.save(), vamos utilizar o authManager.
+
+Devemos apagar as linhas 23 e 24 onde temos KeychainHelper. No lugar, escreveremos authManager.saveToken passando o token que é o response.token. Faremos o mesmo para o patientID, ou seja, authManager.savePatientID(), passando o response.id.
+
+SignInView.swift:
+struct SignInView: View {
+
+        @State private var email: String = ""
+        @State private var password: String = ""
+        @State private var showAlert: Bool = false
+
+        @ObservableObject var authManager = AuthenticationManager()
+
+        let service = WebService()
+
+        func login() async {
+                do {
+                        if let response = try await service.loginPatient(email: email, password: password) {
+                                authManager.saveToken(token: response.token)
+                                authManager.savePatientID(id: response.id)
+                        } else {
+                                showAlert = true
+                        }
+                } catch {
+                        showAlert = true
+                        print("Ocorreu um erro no login: \(error)")
+                }
+        }
+
+// código omitido…
+}
+COPIAR CÓDIGO
+Para verificar se tudo está funcionando, executaremos a aplicação com "Command + R". Inicialmente, estamos logados, porém ao clicar em logout, não funciona. Isso acontece porque ainda estamos usando o Keychain e ainda não implementemos a classe AuthenticationManager nesse arquivo.
+
+Por isso, vamos voltar na tela inicial do simulador e apagar o aplicativo. Basta clicar e segurar no ícone do aplicativo até aparecer a opção "Remove App". Em seguida, executaremos novamente. Agora, a tela de login aparece.
+
+Vamos inserir o e-mail e a senha para verificar se somos levados para a tela inicial. Ao clicar em "Entrar", não foi exibido o erro de login, mas também não houve nenhuma ação. E por que isso aconteceu?
+
+O problema é que ao retornar à nossa ContentView, estamos instanciando a classe AuthenticationManager. Enquanto na SignInView, também estamos instanciando a nossa classe AuthenticationManager. Portanto, temos duas instâncias completamente diferentes que não se comunicam entre si.
+
+Quando salvamos o token e o ID do paciente na nossa tela de login, em SignInView, a nossa ContentView não está recebendo essas informações porque é uma instância diferente. Sendo assim, precisamos pensar em uma solução para que elas compartilhem a mesma instância e, assim, as modificações poderão ser atualizadas com sucesso.
+
+Desta forma, a ContentView conseguirá obter essa modificação feita na tela de login, por exemplo. É precisamente por essa razão que precisamos conhecer um padrão de projeto chamado Singleton. No entanto, deixaremos essa discussão para o próximo vídeo.
+
+@@08
+Compreendendo o @ObservedObject e @Published
+
+Imagine que estamos desenvolvendo um aplicativo chamado "TaskList" em SwiftUI, que permite aos usuários criar, editar e excluir tarefas. Há duas telas no aplicativo:
+A tela principal que exibe a lista de tarefas;
+A tela de edição onde as tarefas podem ser modificadas.
+Neste caso, estamos usando @ObservedObject e @Published para gerenciar e refletir as mudanças no aplicativo.
+
+Analise as afirmações a seguir sobre a implementação de "TaskList". Selecione as que são verdadeiras:
+
+Na tela de edição, quando o usuário edita uma tarefa, as alterações são refletidas automaticamente na lista de tarefas na tela principal, graças ao @Published.
+ 
+Correto! Se uma propriedade da tarefa for anotada com @Published, qualquer alteração nessa propriedade notificará as visualizações observadoras sobre a mudança.
+Alternativa correta
+Como a tela principal está constantemente sendo alterada e editada pela pessoa usuária, precisamos inserir um @ObservedObject para observar as alterações na lista de tarefas que aparecem nessa tela.
+ 
+Faz sentido! A tela principal precisa reagir às mudanças na lista de tarefas. Para isso, @ObservedObject seria usado para observar uma instância que conforma o protocolo ObservableObject.
+Alternativa correta
+Precisamos criar o modelo de tarefa do aplicativo como uma struct (estrutura), pois a anotação @Published não pode ser usada dentro de classes.
+ 
+Alternativa correta
+Para garantir que os dados do usuário não se percam quando ele fechar o aplicativo, precisamos aplicar o @ObservedObject , que permitirá salvar as informações automaticamente.
+
+@@09
+Conhecendo o padrão de projeto Singleton
+
+Singleton é um padrão de projeto que garante que nossa classe tenha uma instância única, ou seja, um único ponto de acesso. Esse padrão não permite que outras classes ou structs instanciem nossa classe.
+Por isso, vamos aplicar esse padrão de projeto Singleton na AuthenticationManager, para compartilhar instâncias na aplicação.
+
+Padrão de projeto Singleton
+Para garantir que tenhamos apenas uma única instância e que nenhuma outra classe ou struct consiga instanciar a AuthenticationManager, precisamos prevenir isto no init(). Portanto, na linha 14, quando estamos definindo meu construtor, devemos adicionar a palavra-chave private antes. Isso significa que ninguém consegue instanciar essa classe.
+
+Em seguida, precisamos compartilhar essa instância única. Como faremos isso? Antes das variáveis na linha 11, vamos escrever static, que será uma propriedade estática, let, que será uma constante. Definiremos essa constante como shared, que significa compartilhado.
+
+E o que será essa shared? Será igual à instância de AuthenticationManager(). Essa será a única instância da nossa classe. Portanto, quando outra classe, ou outra struct, for acessar a AuthenticationManager, ela vai acessar por esta propriedade shared. Ela não vai conseguir instanciar a classe.
+
+AuthenticationManager.swift:
+class AuthenticationManager: ObservableObject {
+
+        static let shared = AuthenticationManager()
+
+        @Published var token: String?
+        @Published var patientID: String?
+
+        private init() {
+                self.token = KeychainHelper.get(for: "app-vollmed-token")
+                self.patientID = KeychainHelper.get(for: "app-vollmed-patient-id")
+        }
+
+    // código omitido…
+}
+COPIAR CÓDIGO
+Vale lembrar, que esta palavra-chave, private, que temos antes do construtor, previne que outras classes e structs instanciem a AuthenticationManager. Mas a própria classe pode ter uma instância de AuthenticationManager. Esse private é apenas para classes e structs externas a este arquivo.
+
+Com o shared, conseguimos compartilhar uma única instância entre todas as views da aplicação. Este é o padrão Singleton.
+Agora, iremos em ContentView e, já aparece um erro em var authManager na linha 12, porque ele afirma que o inicializador é inacessível porque utilizamos a palavra-chave private. Portanto, não podemos mais instanciar esta classe. Então, vamos remover os parênteses de AuthenticationManager e colocar um .shared.
+
+ContentView.swift:
+@ObservedObject var authManager = AuthenticationManager.shared
+COPIAR CÓDIGO
+Agora, temos acesso a esta instância da classe, porque a instância está sendo definida dentro da classe AuthenticationManager, mas não estamos instanciando ela de uma forma direta. Estamos compartilhando essa instância. Isso ficará mais claro ao decorrer do projeto.
+
+Vamos manter o @ObservedObject, porque precisamos que ele observe a classe. Portanto, não é preciso fazer mais nenhuma modificação.
+
+Agora, vamos à SignInView, onde faremos outras modificações. Nesse caso, não é preciso utilizar o @ObservedObject na linha 16. Podemos removê-lo porque é a ContentView que precisa receber a informação da atualização - e não a SignInView.
+
+A SignInView não precisa receber a informação de quando o token é atualizado ou removido, por exemplo. É apenas a ContentView, porque é ela que vai fazer todo o remanejamento das telas. Portanto, podemos apagar o @ObservedObject antes de var authManager.
+
+Novamente, não conseguimos instanciar a AuthenticationManager. Então, vamos apagar os parênteses e colocar um .shared.
+
+SignInView.swift:
+var authManager = AuthenticationManager.shared
+COPIAR CÓDIGO
+Agora, vamos executar e verificar se está funcionando. Vamos pressionar "Command + R" para abrir o emulador na tela de login. Vamos tentar logar com o e-mail do Lucas, lucas@gmail.com, e senha 12345. O aplicativo foi para a tela de boas-vindas. Conseguimos realizar esta navegação!
+
+Substituindo KeychainHelper por AuthenticationManager
+Agora, precisamos implementar este AuthenticationManager em todos os lugares que ainda estamos utilizando daquele KeychainHelper, como, por exemplo, na função de logout().
+
+Vamos à HomeView, que é onde esta função de logout() está implementada. Vamos usar a propriedade AuthenticationManager.shared. Logo após a minha variável let service, vamos criar um var authManager, que é igual a AuthenticationManager.shared.
+
+Nos locais onde estamos utilizando o KeychainHelper, vamos deletar e substituir por authManager.removeToken() e authManager.removePatientID().
+
+HomeView.swift:
+var authManager = AuthenticationManager.shared
+
+// código omitido…
+
+func logout() async {
+        do {
+                let logoutSuccessful = try await service.logoutPatient()
+                if logoutSuccessful {
+                        authManager.removeToken()
+                        authManager.removePatientID()
+                }
+        } catch {
+                print("Ocorreu um erro no logout: \(error)")
+        }
+}
+COPIAR CÓDIGO
+Onde mais estamos utilizando o KeychainHelper? Podemos pesquisar. Clicando na barra de pesquisa, no canto superior esquerdo, procuramos por KeychainHelper. Estamos utilizando no Webservice, na ScheduleAppointmentView e na MyAppointmentsView.
+
+Começaremos com o MyAppointmentsView. Vamos precisar criar o AuthenticationManager.shared, ou seja, var authManager = AuthenticationManager.shared.
+
+Vamos deletar o KeychainHelper.get() e manter o guard let patientID que será igual à authManager.patientID. Como este é um opcional, então else return para que ele retorne à função caso ocorra algum erro ao obter o ID do paciente.
+
+MyAppointmentsView.swift:
+var authManager = AuthenticationManager.shared
+
+// código omitido…
+
+func getAllAppointments() async {
+        guard let patientID = authManager.patientID else {
+                return
+        }
+        // código omitido…
+}
+COPIAR CÓDIGO
+Copiaremos essa expressão guard let patientID, ou seja, "Comand + C" da linha 18 até a linha 20, porque vamos precisar utilizá-la também na ScheduleAppointmentView. Vamos colá-la na função scheduleAppointment(). E também é preciso criar a variável authManager, logo após o let service.
+
+ScheduleAppointmentView.swift:
+var authManager = AuthenticationManager.shared
+
+// código omitido…
+
+func scheduleAppointment() async {
+        guard let patientID = authManager.patientID else {
+                return
+        }
+        // código omitido…
+}
+COPIAR CÓDIGO
+Agora precisamos modificar todos os KeychainHelper do WebService, onde estamos obtendo o token. O princípio é o mesmo do ID do paciente. É preciso definir authManager = authenticationManager.shared, logo após o private let.
+
+Na função logoutPatient(), em vez de KeychainHelper.get, vamos definir guard let token = authManager.token. O else vai exibir print("Token não informado!") e fazer o return como falso.
+
+WebService.swift:
+var authManager = AuthenticationManager.shared
+
+func logoutPatient() async throws -> Bool {
+        let endpoint = baseURL + "/auth/logout"
+
+        guard let url = URL(string: endpoint) else {
+                print("Erro na URL!")
+                return false
+        }
+
+        guard let token = authManager.token else {
+                print("Token não informado!")
+                return false
+        }
+
+        // código omitido…
+}
+COPIAR CÓDIGO
+Vamos copiar essa instrução de guard let token, da linha 23 até a 26, e vamos colar em todas as rotas onde precisamos do token. Ou seja, vamos colar nas funções cancelAppointment(), rescheduleAppointment() e getAllAppointmentsFromPatient() e scheduleAppointment().
+
+Note que em rescheduleAppointment(), getAllAppointmentsFromPatient() e scheduleAppointment() o return não é falso. Na verdade, é return nil.
+
+Confira o arquivo WebService.swift completo.
+Vamos testar, iniciando a aplicação com "Command + R". Como estamos logados, vamos tentar fazer o logout da aplicação. Somos redirecionados para a tela de login.
+
+Vamos fazer o login novamente, apenas para garantir que tudo está funcionando como esperado. Entramos na tela de boas-vindas e também todas as requisições estão funcionando conforme esperado.
+
+Portanto, temos todo o fluxo da aplicação funcionando de maneira adequada e agora utilizando o Keychain, que é uma prática muito mais segura para armazenar informações sensíveis.
+
+@@10
+Para saber mais: atualizando propriedades @Published na thread principal com SwiftUI
+
+Se você executar a sua aplicação neste momento, pode se deparar com um aviso no console:
+Publishing changes from background threads is not allowed; make sure to publish values from the main thread (via operators like receive(on:)) on model updates. Em livre tradução: “Publicar mudanças a partir de threads em segundo plano não é permitido; certifique-se de publicar valores a partir da thread principal (através de operadores como receive(on:)) nas atualizações do modelo.”
+No desenvolvimento de aplicativos iOS, é essencial entender a importância dos threads e como eles afetam a atualização da interface do usuário. Ao trabalhar com SwiftUI e propriedades @Published, você encontra o aviso acima sobre a tentativa de atualizar a interface do usuário a partir de um thread que não seja o principal.
+
+Entendendo o problema
+Os aplicativos iOS têm um "thread principal" que é responsável por atualizar a interface do usuário e responder às interações do usuário. Qualquer modificação da interface do usuário deve acontecer neste thread. Se tentarmos fazer alterações na interface do usuário a partir de um thread de background, isso pode levar a comportamentos indesejados ou até mesmo ao travamento do aplicativo.
+
+Em SwiftUI, quando uma propriedade marcada com @Published é alterada, ela notifica a interface do usuário para se atualizar. Se essa propriedade for alterada em um thread de background, isso é equivalente a tentar atualizar a interface do usuário a partir desse thread, o que não é permitido.
+
+Solução
+Para resolver isso, você deve garantir que as alterações na propriedade @Published sejam feitas no thread principal. Isso pode ser conseguido usando o DispatchQueue.main.async.
+
+Portanto, precisamos modificar as linhas de código, na classe AuthenticationManager, em que modicamos as propriedades marcadas como @Published. Veja a solução abaixo:
+
+func saveToken(token: String) {
+    KeychainHelper.save(value: token, key: "app-vollmed-token")
+    DispatchQueue.main.async {
+        self.token = token
+    }
+}
+
+func removeToken() {
+    KeychainHelper.remove(for: "app-vollmed-token")
+    DispatchQueue.main.async {
+        self.token = nil
+    }
+}
+
+func savePatientID(id: String) {
+    KeychainHelper.save(value: id, key: "app-vollmed-patient-id")
+    DispatchQueue.main.async {
+        self.patientID = id
+    }
+}
+
+func removePatientID() {
+    KeychainHelper.remove(for: "app-vollmed-patient-id")
+    DispatchQueue.main.async {
+        self.patientID = nil
+    }
+}
+COPIAR CÓDIGO
+Portanto, ao trabalhar com SwiftUI, é vital garantir que todas as atualizações da interface do usuário ocorram no thread principal. Usando DispatchQueue.main.async, você pode garantir que as alterações sejam feitas de forma segura e evitar potenciais problemas ou avisos em sua aplicação.
+
+@@11
+Para saber mais: padrão de projeto Singleton
+
+O que é Singleton?
+Imagine que você tem uma sala especial em sua casa, onde apenas uma pessoa pode entrar de cada vez e, uma vez dentro, essa pessoa tem acesso exclusivo a recursos especiais. Agora, independentemente de quem entra na sala, eles sempre verão as mesmas coisas que a última pessoa deixou lá. Este é o princípio básico do padrão Singleton: é como ter uma sala especial que sempre tem o mesmo estado para todos que a acessam.
+
+Singleton é um padrão de projeto que garante que uma determinada classe tenha apenas uma instância e forneça um ponto global para acessar essa instância. Assim, fornecemos um único ponto de acesso para a classe.
+
+Por que utilizar do Singleton?
+Controle de acesso único: Às vezes, queremos ter certeza de que uma classe tem apenas uma instância. Por exemplo, você pode ter um gerenciador de configurações e quer garantir que haja apenas um conjunto de configurações em toda a aplicação.
+Economia de recursos: Se sabemos que não precisamos de múltiplas instâncias, por que gastar memória e recursos criando várias? Singleton pode ser uma solução mais eficiente em termos de recursos.
+Estado global compartilhado: Em alguns casos, pode ser benéfico ter um estado compartilhado que várias partes do código podem consultar. Singleton oferece uma maneira de fazer isso.
+Onde é utilizado?
+O padrão Singleton é comumente usado em situações onde uma única instância de uma classe deve ser usada por vários clientes. Alguns exemplos comuns incluem:
+
+Gerenciadores de configuração: Para armazenar e recuperar configurações em toda a aplicação.
+Configuração de conexões: Onde as conexões com um banco de dados são reutilizadas, por exemplo.
+Logs: Para manter um único arquivo de log ou ferramenta de logging.
+Gerenciadores de cache: Para armazenar e reutilizar dados frequentemente acessados.
+Como implementar?
+Aqui está um exemplo simples de como criar um Singleton em Swift:
+
+class Singleton {
+    static let sharedInstance = Singleton()
+    
+    private init() { 
+        // construtor privado garante que ninguém
+        // pode criar uma nova instância desta classe
+    }
+    
+    func someFunction() {
+        // Alguma lógica aqui...
+    }
+}
+
+// Uso:
+let instance = Singleton.sharedInstance
+instance.someFunction()
+COPIAR CÓDIGO
+O construtor privado garante que ninguém fora da classe pode instanciar um novo objeto.
+
+Considerações
+Enquanto Singleton pode ser um padrão poderoso, ele deve ser usado com cautela. Ter muitos singletons ou usar o padrão inapropriadamente pode levar a problemas, como tornar o código difícil de testar ou introduzir estados globais que tornam o sistema complexo e difícil de entender.
+
+Conclusão
+O padrão Singleton é uma ferramenta útil para garantir uma única instância de uma classe e fornecer um acesso global a ela. No entanto, como todas as ferramentas, é importante usá-la corretamente e apenas quando apropriado.
+
+@@12
+Faça como eu fiz: criando um AuthenticationManager como camada de abstração
+
+Vamos colocar em prática os nossos conhecimentos sobre as novas propriedades especiais e o padrão de projeto Singleton!
+1 - Conhecendo o Keychain:
+
+a) O Keychain é uma área segura onde você pode salvar informações sensíveis, como senhas e tokens. Isso é mais seguro do que o UserDefaults, que é um armazenamento mais simples e menos protegido.
+b) A estrutura KeychainHelper auxilia nas operações do Keychain.
+c) Troque o uso do UserDefaultsHelper para KeychainHelper em todos os lugares que utilize do UserDefaultsHelper.
+        struct KeychainHelper {
+            ...
+        }
+COPIAR CÓDIGO
+2 - Criando um AuthenticationManager:
+
+a) Para gerenciar informações de autenticação (como token e ID do paciente), crie um AuthenticationManager.
+        class AuthenticationManager {
+            ...
+        }
+COPIAR CÓDIGO
+3 - Utilizando @ObservedObject e @Published:
+
+a) Usando ObservableObject e @Published, permitimos que as views observem as mudanças nas propriedades de um objeto.
+b) Quando uma propriedade @Published é modificada, a view é notificada e se atualiza.
+        @ObservedObject var authManager = AuthenticationManager()
+        
+        class AuthenticationManager: ObservableObject {
+            @Published var token: String?
+            @Published var patientID: String?
+        }
+COPIAR CÓDIGO
+4 - Implementando o padrão Singleton:
+
+a) O padrão Singleton garante que uma classe tenha apenas uma instância e fornece um ponto de acesso a essa instância.
+b) Isso é útil para o AuthenticationManager, já que queremos garantir que todas as partes do aplicativo estejam olhando para a “mesma fonte de verdade” quando se trata de autenticação.
+        class AuthenticationManager: ObservableObject {
+            static let shared = AuthenticationManager()
+            ...
+            private init() {
+                ...
+            }
+        }
+        
+        var authManager = AuthenticationManager.shared
+COPIAR CÓDIGO
+c) Troque de KeychainHelper para authManager em todos os lugares que utilizem do KeychainHelper.
+
+Nesta aula, abordamos técnicas cruciais de segurança e design de software.
+Keychain: Uma escolha sábia para armazenar informações sensíveis, em vez de UserDefaults. No mundo real, usar o Keychain para armazenar tokens ou credenciais é uma prática recomendada.
+AuthenticationManager: Centralizar a lógica e o estado de autenticação em uma classe torna seu código mais limpo e mais fácil de gerenciar.
+Singleton: A capacidade de uma classe poder ter apenas uma única instância nos ajudará a lidar com a lógica de autenticação.
+Sempre considere a segurança como uma prioridade ao projetar e desenvolver aplicativos, especialmente quando lidar com informações sensíveis.
+
+Explore o progresso do projeto no GitHub aqui.
+
+Lembre-se, ao abordar a autenticação, mantenha a simplicidade sem sacrificar a segurança. Se você tiver dúvidas ou feedback, estamos aqui para ajudar no fórum ou no discord!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/aula-05
+
+@@13
+Projeto final
+
+Você pode baixar ou acessar o código fonte do projeto final. Aproveite para explorá-lo e revisar pontos importantes do curso.
+Bons estudos!
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/archive/refs/heads/main.zip
+
+https://github.com/alura-cursos/swiftui-vollmed-authentication/tree/main
+
+@@14
+O que aprendemos?
+
+Nesta aula, você aprendeu a:
+Conhecer o Keychain, uma ferramenta segura para armazenar informações sensíveis;
+Construir um AuthenticationManager para centralizar lógicas de autenticação;
+Utilizar as propriedades especiais @ObservedObject e @Published para monitorar mudanças de estado;
+COnhecer o padrão de projeto Singleton e seus benefícios.
+Priorizando sempre a segurança da aplicação, concluímos o nosso sistema de autenticação!
+
+@@15
+Recados finais
+
+Parabéns, você chegou ao fim do nosso curso. Tenho certeza que esse mergulho foi de muito aprendizado.
+Após os créditos finais do curso, você será redirecionado para uma tela na qual poderá deixar seu feedback e avaliação do curso. Sua opinião é muito importante para nós.
+
+Aproveite para conhecer a nossa comunidade no Discord da Alura e se conectar com outras pessoas com quem pode conversar, aprender e aumentar seu networking.
+
+Continue mergulhando com a gente.
+
+https://discord.com/invite/QeBdgAjXnn
+
+@@16
+Conclusão
+
+Queremos te parabenizar por ter concluído mais um curso de SwiftUI. Durante este curso, nós aprendemos sobre autenticação e como autenticar pessoas usuárias na nossa aplicação.
+O que aprendemos?
+Primeiro, criamos a tela de login com campos de texto, ou seja, aprofundamos nossos conhecimentos sobre o TextField. Também construímos uma tela de cadastro com vários campos de texto e com um componente chamado Picker, que permite a seleção em uma lista.
+
+Tratando do aspecto da autenticação, entendemos como lidar com Token e como salvá-lo na nossa aplicação. Abordamos as duas formas, tanto com o UserDefaults quanto com o Keychain, que é uma prática muito mais segura.
+
+Quando a pessoa usuária realiza o login na aplicação, inserindo e-mail e a senha, ela é redirecionada para a tela principal. Esta é a tela em que ela consegue visualizar especialistas, agendar uma consulta, remarcar e também cancelar. A pessoa usuária também consegue fazer o logout da aplicação e, assim, voltar para a tela de login.
+
+Discutimos como podemos realizar esta comunicação com algo que está sendo salvo no Keychain com a nossa ContentView, através das property wrappers chamadas de @Published e também @ObservedObject.
+
+Por fim, aprendemos um novo padrão de projeto chamado Singleton para compartilhar instâncias na nossa aplicação.
+
+Comunidade
+Estes conhecimentos são muito importantes porque autenticação é uma questão com a qual estamos sempre lidando em projetos reais, no mercado de trabalho.
+
+Também queremos conferir a sua versão do projeto. Então, compartilhe conosco, nos marque nas redes sociais e compartilhe no Discord da Alura. Lá, você vai conhecer mais pessoas que estão fazendo esse curso ou que já o finalizaram.
+
+Até a próxima!
